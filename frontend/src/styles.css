@@ -1,0 +1,69 @@
+:root {
+  --forest: #2C5F2D;
+  --forest-dark: #243D20;
+  --moss: #97BC62;
+  --cream: #F5F7F0;
+  --amber: #E0A800;
+  --slate: #3A3A3A;
+  --gray: #D8D8D8;
+  --lgray: #EFEFEF;
+  --red: #E74C3C;
+  --blue: #5B8DEF;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', Calibri, Arial, sans-serif;
+  background: var(--cream);
+  color: var(--slate);
+}
+a { color: var(--forest); }
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+.btn {
+  background: var(--forest);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 11px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  transition: background .15s;
+}
+.btn:hover { background: #234c24; }
+.btn.ghost { background: var(--moss); color: var(--forest); }
+.btn.block { width: 100%; }
+label { display: block; font-size: 13px; font-weight: 700; margin: 14px 0 6px; }
+input, select, textarea {
+  width: 100%;
+  border: 1.4px solid var(--gray);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--moss);
+  box-shadow: 0 0 0 3px rgba(151,188,98,.25);
+}
+.card {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.08);
+  padding: 26px;
+}
+.container { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+.container-narrow { max-width: 440px; margin: 0 auto; padding: 24px 16px; }
+.title { font-family: Georgia, serif; color: var(--forest); margin-bottom: 6px; }
+.sub { font-size: 13px; color: #666; margin-bottom: 18px; }
+.alert { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin: 12px 0; }
+.alert.error { background: #fde8e6; color: #a5322a; }
+.alert.ok { background: #e6f4e6; color: #2C5F2D; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 11px; font-size: 11px; font-weight: 700; color: #fff; }
+.b-recibido { background: var(--red); }
+.b-asignado { background: var(--blue); }
+.b-en_atencion { background: var(--amber); color: var(--forest); }
+.b-resuelto { background: var(--moss); color: var(--forest); }
+.b-descartado { background: #999; }
