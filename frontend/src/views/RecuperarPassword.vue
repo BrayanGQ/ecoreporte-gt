@@ -47,10 +47,10 @@ async function restablecer() {
 <template>
   <div class="container-narrow">
     <div class="card">
-      <h1 class="title">Recuperar contraseña</h1>
+      <h1 class="title"><i class="bx bx-lock-alt"></i> Recuperar contraseña</h1>
 
-      <div v-if="error" class="alert error">{{ error }}</div>
-      <div v-if="mensaje" class="alert ok">{{ mensaje }}</div>
+      <div v-if="error" class="alert error"><i class="bx bx-error-circle"></i> {{ error }}</div>
+      <div v-if="mensaje" class="alert ok"><i class="bx bx-check-circle"></i> {{ mensaje }}</div>
 
       <!-- Paso 1: solicitar por correo -->
       <template v-if="paso === 1">
@@ -58,7 +58,7 @@ async function restablecer() {
         <label>Correo electrónico</label>
         <input v-model="correo" type="email" placeholder="correo@ejemplo.com" />
         <button class="btn block" style="margin-top:20px" :disabled="cargando" @click="solicitar">
-          {{ cargando ? 'Enviando...' : 'Enviar instrucciones' }}
+          <i class="bx bx-envelope"></i> {{ cargando ? 'Enviando...' : 'Enviar instrucciones' }}
         </button>
       </template>
 
@@ -68,13 +68,19 @@ async function restablecer() {
         <label>Nueva contraseña</label>
         <input v-model="nuevaPassword" type="password" placeholder="Mínimo 6 caracteres" />
         <button class="btn block" style="margin-top:20px" :disabled="cargando" @click="restablecer">
-          {{ cargando ? 'Guardando...' : 'Restablecer contraseña' }}
+          <i class="bx bx-check"></i> {{ cargando ? 'Guardando...' : 'Restablecer contraseña' }}
         </button>
       </template>
 
-      <div style="margin-top:16px; font-size:13px; text-align:center;">
-        <router-link to="/portal/login">Volver a iniciar sesión</router-link>
+      <div class="links-footer">
+        <router-link to="/portal/login"><i class="bx bx-arrow-back"></i> Volver a iniciar sesión</router-link>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.title { display: flex; align-items: center; gap: 10px; }
+.links-footer { margin-top: 18px; font-size: 13px; text-align: center; }
+.links-footer a { display: inline-flex; align-items: center; gap: 4px; }
+</style>

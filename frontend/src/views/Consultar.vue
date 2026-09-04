@@ -33,29 +33,28 @@ function fecha(f) {
 <template>
   <div class="container-narrow">
     <div class="card">
-      <h1 class="title">Consultar un reporte</h1>
+      <h1 class="title"><i class="bx bx-search"></i> Consultar un reporte</h1>
       <p class="sub">Ingresá el código de seguimiento que recibiste al reportar.</p>
 
-      <div v-if="error" class="alert error">{{ error }}</div>
+      <div v-if="error" class="alert error"><i class="bx bx-error-circle"></i> {{ error }}</div>
 
       <label>Código de seguimiento</label>
       <input v-model="codigo" type="text" placeholder="ER-2026-0001" @keyup.enter="consultar" />
 
       <button class="btn block" style="margin-top:16px" :disabled="cargando" @click="consultar">
-        {{ cargando ? 'Consultando...' : 'Consultar' }}
+        <i class="bx bx-search"></i> {{ cargando ? 'Consultando...' : 'Consultar' }}
       </button>
 
       <!-- Resultado -->
-      <div v-if="reporte" style="margin-top:22px">
-        <hr style="border:none;border-top:1px solid var(--gray);margin-bottom:16px" />
+      <div v-if="reporte" class="resultado">
         <p><strong>Tipo:</strong> {{ reporte.nombre_tipo }}</p>
-        <p style="margin:6px 0"><strong>Estado actual:</strong>
+        <p class="fila"><strong>Estado actual:</strong>
           <span class="badge" :class="'b-' + reporte.nombre_estado">{{ reporte.nombre_estado }}</span>
         </p>
         <p><strong>Municipalidad:</strong> {{ reporte.municipalidad }}</p>
-        <p v-if="reporte.descripcion" style="margin-top:6px"><strong>Descripción:</strong> {{ reporte.descripcion }}</p>
+        <p v-if="reporte.descripcion" class="descripcion"><strong>Descripción:</strong> {{ reporte.descripcion }}</p>
 
-        <h3 style="margin:18px 0 8px;color:var(--forest);font-size:15px">Historial de seguimiento</h3>
+        <h3 class="subtitulo"><i class="bx bx-history"></i> Historial de seguimiento</h3>
         <ul class="timeline">
           <li v-for="(h, i) in reporte.historial" :key="i">
             <strong>{{ h.nombre_estado }}</strong>
@@ -69,6 +68,12 @@ function fecha(f) {
 </template>
 
 <style scoped>
+.title { display: flex; align-items: center; gap: 10px; }
+.resultado { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 14px; }
+.resultado p { margin: 8px 0; }
+.fila { display: flex; align-items: center; gap: 8px; }
+.descripcion { margin-top: 8px; }
+.subtitulo { display: flex; align-items: center; gap: 6px; margin: 20px 0 10px; color: var(--forest-dark); font-size: 15px; font-weight: 700; }
 .timeline { list-style: none; }
 .timeline li { padding: 8px 0 8px 18px; position: relative; font-size: 13px; border-left: 2px solid var(--moss); margin-left: 4px; }
 .timeline li:before {

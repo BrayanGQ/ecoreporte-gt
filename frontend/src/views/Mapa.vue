@@ -70,10 +70,10 @@ onMounted(async () => {
 
 <template>
   <div class="container">
-    <h1 class="title">Mapa de reportes</h1>
+    <h1 class="title"><i class="bx bx-map-alt"></i> Mapa de reportes</h1>
     <p class="sub">Cada marcador representa un reporte ciudadano georreferenciado.</p>
 
-    <div v-if="error" class="alert error">{{ error }}</div>
+    <div v-if="error" class="alert error"><i class="bx bx-error-circle"></i> {{ error }}</div>
 
     <div class="filtros">
       <select v-model="filtros.estado" @change="cargarReportes">
@@ -92,22 +92,27 @@ onMounted(async () => {
       </select>
     </div>
 
-    <div id="mapaFull" style="height:460px; border-radius:10px; margin-top:12px;"></div>
+    <div id="mapaFull" class="mapa-box"></div>
 
     <div class="leyenda">
-      <span><i style="background:#E74C3C"></i>Recibido</span>
-      <span><i style="background:#5B8DEF"></i>Asignado</span>
-      <span><i style="background:#E0A800"></i>En atención</span>
-      <span><i style="background:#97BC62"></i>Resuelto</span>
-      <span><i style="background:#999"></i>Descartado</span>
+      <span><i class="dot" style="background:#E74C3C"></i>Recibido</span>
+      <span><i class="dot" style="background:#5B8DEF"></i>Asignado</span>
+      <span><i class="dot" style="background:#E0A800"></i>En atención</span>
+      <span><i class="dot" style="background:#97BC62"></i>Resuelto</span>
+      <span><i class="dot" style="background:#999"></i>Descartado</span>
     </div>
   </div>
 </template>
 
 <style scoped>
+.title { display: flex; align-items: center; gap: 10px; }
 .filtros { display: flex; gap: 10px; flex-wrap: wrap; }
-.filtros select { width: auto; flex: 1; min-width: 160px; border-radius: 16px; }
-.leyenda { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; }
-.leyenda span { display: flex; align-items: center; gap: 6px; }
-.leyenda i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.filtros select { width: auto; flex: 1; min-width: 160px; }
+.mapa-box { height: 460px; border-radius: var(--radius-card); margin-top: 14px; border: 1px solid var(--border); overflow: hidden; }
+.leyenda {
+  display: flex; gap: 18px; flex-wrap: wrap; margin-top: 14px; padding: 12px 16px;
+  background: #fff; border: 1px solid var(--border); border-radius: var(--radius-card); font-size: 13px;
+}
+.leyenda span { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+.leyenda .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 </style>

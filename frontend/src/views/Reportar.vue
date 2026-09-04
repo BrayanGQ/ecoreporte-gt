@@ -88,13 +88,14 @@ async function enviar() {
 <template>
   <div class="container">
     <div class="card">
-      <h1 class="title">Reportar un vertedero clandestino</h1>
+      <h1 class="title"><i class="bx bx-trash"></i> Reportar un vertedero clandestino</h1>
       <p class="sub">Completá el formulario. No necesitás crear una cuenta.</p>
 
-      <div v-if="error" class="alert error">{{ error }}</div>
+      <div v-if="error" class="alert error"><i class="bx bx-error-circle"></i> {{ error }}</div>
       <div v-if="codigoGenerado" class="alert ok">
-        ¡Reporte enviado! Tu código de seguimiento es <strong>{{ codigoGenerado }}</strong>.
-        Guardalo para consultar el estado.
+        <i class="bx bx-check-circle"></i>
+        <span>¡Reporte enviado! Tu código de seguimiento es <strong>{{ codigoGenerado }}</strong>.
+        Guardalo para consultar el estado.</span>
       </div>
 
       <label>Tipo de incidencia</label>
@@ -115,15 +116,19 @@ async function enviar() {
       <label>Descripción</label>
       <textarea v-model="form.descripcion" placeholder="Describí lo que observaste..."></textarea>
 
-      <label>Ubicación en el mapa (arrastrá el marcador o hacé clic)</label>
-      <div id="map" style="height:280px; border-radius:8px; margin-top:6px;"></div>
-      <p style="font-size:12px; color:#888; margin-top:6px;">
-        Coordenadas: {{ form.latitud.toFixed(5) }}, {{ form.longitud.toFixed(5) }}
-      </p>
+      <label><i class="bx bx-current-location"></i> Ubicación en el mapa (arrastrá el marcador o hacé clic)</label>
+      <div id="map" class="map-box"></div>
+      <p class="coords">Coordenadas: {{ form.latitud.toFixed(5) }}, {{ form.longitud.toFixed(5) }}</p>
 
-      <button class="btn block" style="margin-top:20px" :disabled="cargando" @click="enviar">
-        {{ cargando ? 'Enviando...' : 'Enviar reporte' }}
+      <button class="btn block" style="margin-top:24px" :disabled="cargando" @click="enviar">
+        <i class="bx bx-send"></i> {{ cargando ? 'Enviando...' : 'Enviar reporte' }}
       </button>
     </div>
   </div>
 </template>
+
+<style scoped>
+.title { display: flex; align-items: center; gap: 10px; }
+.map-box { height: 280px; border-radius: var(--radius-card); margin-top: 8px; border: 1px solid var(--border); overflow: hidden; }
+.coords { font-size: 12.5px; color: var(--text-secondary); margin-top: 8px; }
+</style>

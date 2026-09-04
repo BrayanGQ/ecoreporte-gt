@@ -9,7 +9,7 @@ const router = useRouter();
     <div class="halo"></div>
     <div class="contenido">
       <div class="marca">
-        <div class="logo"></div>
+        <div class="logo"><i class="bx bx-leaf"></i></div>
         <h1>EcoReporte GT</h1>
       </div>
       <p class="descripcion">
@@ -19,17 +19,17 @@ const router = useRouter();
 
       <div class="tarjetas">
         <button class="tarjeta ciudadano" @click="router.push('/portal')">
-          <span class="icono">🌱</span>
+          <span class="icono"><i class="bx bx-user"></i></span>
           <h2>Soy Ciudadano</h2>
           <p>Reportá un vertedero, consultá el estado de tu denuncia o mirá el mapa. No necesitás cuenta.</p>
-          <span class="cta">Entrar al portal ciudadano →</span>
+          <span class="cta">Entrar al portal ciudadano <i class="bx bx-right-arrow-alt"></i></span>
         </button>
 
         <button class="tarjeta municipal" @click="router.push('/municipal/login')">
-          <span class="icono">🏛️</span>
+          <span class="icono"><i class="bx bx-building"></i></span>
           <h2>Soy Municipalidad</h2>
           <p>Accedé al panel para gestionar los reportes recibidos en tu municipalidad.</p>
-          <span class="cta">Ingresar al panel municipal →</span>
+          <span class="cta">Ingresar al panel municipal <i class="bx bx-right-arrow-alt"></i></span>
         </button>
       </div>
     </div>
@@ -42,7 +42,7 @@ const router = useRouter();
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(160deg, var(--cream) 0%, #eaf0e2 100%);
+  background: var(--bg);
   padding: 24px;
   position: relative;
   overflow: hidden;
@@ -52,7 +52,7 @@ const router = useRouter();
   width: 700px;
   height: 700px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(151, 188, 98, 0.25) 0%, rgba(151, 188, 98, 0) 70%);
+  background: radial-gradient(circle, rgba(151, 188, 98, .16) 0%, rgba(151, 188, 98, 0) 70%);
   top: -220px;
   right: -220px;
 }
@@ -66,26 +66,31 @@ const router = useRouter();
   align-items: center;
   justify-content: center;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 .logo {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
   background: var(--forest);
-  box-shadow: 0 0 0 6px rgba(151, 188, 98, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 22px;
 }
 .marca h1 {
-  font-family: Georgia, serif;
-  color: var(--forest);
-  font-size: 32px;
+  font-weight: 700;
+  color: var(--forest-dark);
+  font-size: 30px;
+  letter-spacing: -.01em;
 }
 .descripcion {
-  color: var(--slate);
+  color: var(--text-secondary);
   font-size: 15px;
   max-width: 560px;
-  margin: 0 auto 36px;
-  line-height: 1.5;
+  margin: 0 auto 40px;
+  line-height: 1.6;
 }
 .tarjetas {
   display: grid;
@@ -94,45 +99,59 @@ const router = useRouter();
 }
 .tarjeta {
   background: #fff;
-  border: none;
-  border-radius: 14px;
-  padding: 30px 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 32px 26px;
   text-align: left;
   cursor: pointer;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
-  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: var(--shadow-sm);
+  transition: transform .15s, box-shadow .15s, border-color .15s;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 .tarjeta:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.14);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--moss);
 }
 .tarjeta .icono {
-  font-size: 30px;
-  margin-bottom: 4px;
-}
-.tarjeta h2 {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin-bottom: 8px;
+  background: var(--cream);
   color: var(--forest);
-  font-size: 19px;
+}
+.tarjeta.municipal .icono { background: #FCF3DC; color: var(--amber); }
+.tarjeta h2 {
+  color: var(--forest-dark);
+  font-size: 18px;
+  font-weight: 700;
 }
 .tarjeta p {
-  color: #666;
-  font-size: 13px;
-  line-height: 1.45;
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  line-height: 1.5;
   margin-bottom: 8px;
 }
 .tarjeta .cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
 }
 .tarjeta.ciudadano .cta { color: var(--forest); }
-.tarjeta.municipal { border-top: 4px solid var(--forest-dark); }
+.tarjeta.municipal { border-top: 3px solid var(--forest-dark); }
 .tarjeta.municipal .cta { color: var(--amber); }
 
 @media (max-width: 640px) {
   .tarjetas { grid-template-columns: 1fr; }
-  .marca h1 { font-size: 26px; }
+  .marca h1 { font-size: 24px; }
 }
 </style>

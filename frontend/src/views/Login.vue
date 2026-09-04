@@ -38,10 +38,13 @@ async function iniciarSesion() {
 <template>
   <div class="container-narrow">
     <div class="card">
-      <h1 class="title">{{ esMunicipal ? 'Acceso municipal' : 'Iniciar sesión' }}</h1>
+      <h1 class="title">
+        <i :class="esMunicipal ? 'bx bx-building' : 'bx bx-user'"></i>
+        {{ esMunicipal ? 'Acceso municipal' : 'Iniciar sesión' }}
+      </h1>
       <p class="sub">Ingresá tus credenciales para acceder.</p>
 
-      <div v-if="error" class="alert error">{{ error }}</div>
+      <div v-if="error" class="alert error"><i class="bx bx-error-circle"></i> {{ error }}</div>
 
       <label>Correo electrónico</label>
       <input v-model="correo" type="email" placeholder="correo@ejemplo.com" @keyup.enter="iniciarSesion" />
@@ -50,18 +53,24 @@ async function iniciarSesion() {
       <input v-model="password" type="password" placeholder="••••••••" @keyup.enter="iniciarSesion" />
 
       <button class="btn block" style="margin-top:20px" :disabled="cargando" @click="iniciarSesion">
-        {{ cargando ? 'Ingresando...' : 'Ingresar' }}
+        <i class="bx bx-log-in"></i> {{ cargando ? 'Ingresando...' : 'Ingresar' }}
       </button>
 
-      <div style="margin-top:16px; font-size:13px; text-align:center;">
+      <div class="links-footer">
         <template v-if="!esMunicipal">
           <router-link to="/portal/recuperar">¿Olvidaste tu contraseña?</router-link>
           <br /><br />
           ¿No tenés cuenta? <router-link to="/portal/registro">Registrate</router-link>
           <br /><br />
         </template>
-        <router-link to="/">← Volver al inicio</router-link>
+        <router-link to="/"><i class="bx bx-arrow-back"></i> Volver al inicio</router-link>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.title { display: flex; align-items: center; gap: 10px; }
+.links-footer { margin-top: 18px; font-size: 13px; text-align: center; }
+.links-footer a { display: inline-flex; align-items: center; gap: 4px; }
+</style>
