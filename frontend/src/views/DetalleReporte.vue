@@ -52,7 +52,7 @@ onMounted(cargar);
 
 <template>
   <div class="container">
-    <a class="volver" @click="router.push('/panel')">← Volver a reportes</a>
+    <a class="volver" @click="router.push('/municipal/panel')">← Volver a reportes</a>
 
     <div v-if="error" class="alert error">{{ error }}</div>
     <div v-if="ok" class="alert ok">{{ ok }}</div>

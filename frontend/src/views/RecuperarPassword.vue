@@ -73,7 +73,7 @@ async function restablecer() {
       </template>
 
       <div style="margin-top:16px; font-size:13px; text-align:center;">
-        <router-link to="/login">Volver a iniciar sesión</router-link>
+        <router-link to="/portal/login">Volver a iniciar sesión</router-link>
       </div>
     </div>
   </div>

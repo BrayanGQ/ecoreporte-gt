@@ -21,7 +21,7 @@ async function cargar() {
 }
 
 function gestionar(id) {
-  router.push(`/panel/reporte/${id}`);
+  router.push(`/municipal/panel/reporte/${id}`);
 }
 
 function fecha(f) {

@@ -1,6 +1,9 @@
 // Configuración de rutas de la aplicación con Vue Router.
 import { createRouter, createWebHistory } from 'vue-router';
 
+import Bienvenida from '../views/Bienvenida.vue';
+import PortalCiudadanoLayout from '../layouts/PortalCiudadanoLayout.vue';
+import PortalMunicipalLayout from '../layouts/PortalMunicipalLayout.vue';
 import Reportar from '../views/Reportar.vue';
 import Mapa from '../views/Mapa.vue';
 import Consultar from '../views/Consultar.vue';
@@ -11,23 +14,38 @@ import PanelMunicipal from '../views/PanelMunicipal.vue';
 import DetalleReporte from '../views/DetalleReporte.vue';
 
 const routes = [
-  { path: '/', name: 'reportar', component: Reportar },
-  { path: '/mapa', name: 'mapa', component: Mapa },
-  { path: '/consultar', name: 'consultar', component: Consultar },
-  { path: '/login', name: 'login', component: Login },
-  { path: '/registro', name: 'registro', component: Registro },
-  { path: '/recuperar', name: 'recuperar', component: RecuperarPassword },
+  // Pantalla de bienvenida: punto de entrada, sin navbar.
+  { path: '/', name: 'bienvenida', component: Bienvenida },
+
+  // Portal ciudadano: reportar, mapa y consultar no requieren login.
   {
-    path: '/panel',
-    name: 'panel',
-    component: PanelMunicipal,
-    meta: { requiereAuth: true },
+    path: '/portal',
+    component: PortalCiudadanoLayout,
+    children: [
+      { path: '', name: 'reportar', component: Reportar },
+      { path: 'mapa', name: 'mapa', component: Mapa },
+      { path: 'consultar', name: 'consultar', component: Consultar },
+      { path: 'login', name: 'login-ciudadano', component: Login, meta: { portal: 'ciudadano' } },
+      { path: 'registro', name: 'registro', component: Registro },
+      { path: 'recuperar', name: 'recuperar', component: RecuperarPassword },
+    ],
+  },
+
+  // Portal municipal: login público, panel protegido.
+  {
+    path: '/municipal/login',
+    name: 'login-municipal',
+    component: Login,
+    meta: { portal: 'municipal' },
   },
   {
-    path: '/panel/reporte/:id',
-    name: 'detalle',
-    component: DetalleReporte,
+    path: '/municipal/panel',
+    component: PortalMunicipalLayout,
     meta: { requiereAuth: true },
+    children: [
+      { path: '', name: 'panel', component: PanelMunicipal },
+      { path: 'reporte/:id', name: 'detalle', component: DetalleReporte },
+    ],
   },
 ];
 
@@ -36,11 +54,11 @@ const router = createRouter({
   routes,
 });
 
-// Guarda de navegación: protege las rutas que requieren autenticación.
+// Guarda de navegación: protege las rutas del panel municipal.
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token');
   if (to.meta.requiereAuth && !token) {
-    next({ name: 'login' });
+    next({ name: 'login-municipal' });
   } else {
     next();
   }

@@ -1,13 +1,17 @@
 <script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { authService } from '../services/api';
 
+const route = useRoute();
 const router = useRouter();
 const correo = ref('');
 const password = ref('');
 const error = ref('');
 const cargando = ref(false);
+
+// El mismo formulario se usa para el login ciudadano y el municipal.
+const esMunicipal = computed(() => route.meta.portal === 'municipal');
 
 async function iniciarSesion() {
   error.value = '';
@@ -19,9 +23,9 @@ async function iniciarSesion() {
     window.dispatchEvent(new Event('storage-updated'));
     // Redirige según el rol.
     if (['personal_municipal', 'administrador'].includes(data.usuario.rol)) {
-      router.push('/panel');
+      router.push('/municipal/panel');
     } else {
-      router.push('/');
+      router.push('/portal');
     }
   } catch (err) {
     error.value = err.response?.data?.error || 'Error al iniciar sesión.';
@@ -34,7 +38,7 @@ async function iniciarSesion() {
 <template>
   <div class="container-narrow">
     <div class="card">
-      <h1 class="title">Iniciar sesión</h1>
+      <h1 class="title">{{ esMunicipal ? 'Acceso municipal' : 'Iniciar sesión' }}</h1>
       <p class="sub">Ingresá tus credenciales para acceder.</p>
 
       <div v-if="error" class="alert error">{{ error }}</div>
@@ -50,9 +54,13 @@ async function iniciarSesion() {
       </button>
 
       <div style="margin-top:16px; font-size:13px; text-align:center;">
-        <router-link to="/recuperar">¿Olvidaste tu contraseña?</router-link>
-        <br /><br />
-        ¿No tenés cuenta? <router-link to="/registro">Registrate</router-link>
+        <template v-if="!esMunicipal">
+          <router-link to="/portal/recuperar">¿Olvidaste tu contraseña?</router-link>
+          <br /><br />
+          ¿No tenés cuenta? <router-link to="/portal/registro">Registrate</router-link>
+          <br /><br />
+        </template>
+        <router-link to="/">← Volver al inicio</router-link>
       </div>
     </div>
   </div>

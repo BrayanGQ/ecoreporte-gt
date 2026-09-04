@@ -27,7 +27,7 @@ async function registrar() {
       password: password.value,
     });
     ok.value = 'Cuenta creada correctamente. Ya podés iniciar sesión.';
-    setTimeout(() => router.push('/login'), 1500);
+    setTimeout(() => router.push('/portal/login'), 1500);
   } catch (err) {
     error.value = err.response?.data?.error || 'Error al crear la cuenta.';
   } finally {
@@ -62,7 +62,7 @@ async function registrar() {
       </button>
 
       <div style="margin-top:16px; font-size:13px; text-align:center;">
-        ¿Ya tenés cuenta? <router-link to="/login">Iniciá sesión</router-link>
+        ¿Ya tenés cuenta? <router-link to="/portal/login">Iniciá sesión</router-link>
       </div>
     </div>
   </div>
