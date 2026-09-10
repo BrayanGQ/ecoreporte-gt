@@ -11,11 +11,19 @@ function generarCodigo(id) {
 async function crearReporte(req, res) {
   const {
     id_tipo_incidencia, id_municipalidad, descripcion,
-    latitud, longitud, id_usuario_reporta,
+    latitud, longitud, id_usuario_reporta, evidencias,
   } = req.body;
 
   if (!id_tipo_incidencia || !id_municipalidad || latitud == null || longitud == null) {
     return res.status(400).json({ error: 'Tipo de incidencia, municipalidad y ubicación son obligatorios.' });
+  }
+
+  // Evidencias: arreglo opcional de imágenes en base64 (data URL). Entre 0 y 5.
+  const imagenes = Array.isArray(evidencias)
+    ? evidencias.filter((img) => typeof img === 'string' && img.trim() !== '')
+    : [];
+  if (imagenes.length > 5) {
+    return res.status(400).json({ error: 'Se permiten como máximo 5 fotografías por reporte.' });
   }
 
   const client = await pool.connect();
@@ -52,6 +60,15 @@ async function crearReporte(req, res) {
        VALUES ($1, $2, 'Reporte recibido')`,
       [idReporte, idEstadoRecibido]
     );
+
+    // Inserta las evidencias fotográficas ciudadanas asociadas al reporte.
+    for (const imagen of imagenes) {
+      await client.query(
+        `INSERT INTO evidencia_fotografica (id_reporte, id_usuario, url_imagen, tipo_evidencia, fecha_carga)
+         VALUES ($1, $2, $3, 'ciudadana', NOW())`,
+        [idReporte, id_usuario_reporta || null, imagen]
+      );
+    }
 
     await client.query('COMMIT');
     res.status(201).json({

@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 3000;
 
 // Middlewares globales.
 app.use(cors());               // permite peticiones desde el frontend (Vue)
-app.use(express.json());       // parsea cuerpos JSON
+app.use(express.json({ limit: '30mb' }));  // parsea cuerpos JSON (amplio: evidencias en base64)
 
 // Ruta de salud, para verificar que la API está en línea.
 app.get('/', (req, res) => {

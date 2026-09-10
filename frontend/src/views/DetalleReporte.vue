@@ -11,6 +11,7 @@ const ok = ref('');
 const nuevoEstado = ref('');
 const comentario = ref('');
 const guardando = ref(false);
+const imagenAmpliada = ref(null);
 
 const estadosPosibles = ['recibido', 'asignado', 'en_atencion', 'resuelto', 'descartado'];
 
@@ -89,6 +90,23 @@ onMounted(cargar);
         </div>
       </div>
 
+      <!-- Evidencia fotográfica -->
+      <div class="card" style="margin-top:20px">
+        <h3><i class="bx bx-camera"></i> Evidencia fotográfica</h3>
+        <div v-if="reporte.evidencias && reporte.evidencias.length" class="evidencias">
+          <button
+            v-for="ev in reporte.evidencias"
+            :key="ev.id_evidencia"
+            type="button"
+            class="evidencia"
+            @click="imagenAmpliada = ev.url_imagen"
+          >
+            <img :src="ev.url_imagen" :alt="'Evidencia ' + ev.id_evidencia" />
+          </button>
+        </div>
+        <p v-else class="sin-evidencia">Este reporte no tiene fotografías de evidencia.</p>
+      </div>
+
       <!-- Historial -->
       <div class="card" style="margin-top:20px">
         <h3><i class="bx bx-history"></i> Historial de estados</h3>
@@ -101,6 +119,12 @@ onMounted(cargar);
           </li>
         </ul>
       </div>
+    </div>
+
+    <!-- Lightbox de evidencia -->
+    <div v-if="imagenAmpliada" class="lightbox" @click="imagenAmpliada = null">
+      <button type="button" class="cerrar" title="Cerrar"><i class="bx bx-x"></i></button>
+      <img :src="imagenAmpliada" alt="Evidencia ampliada" @click.stop />
     </div>
   </div>
 </template>
@@ -126,4 +150,32 @@ onMounted(cargar);
   width: 10px; height: 10px; border-radius: 50%; background: var(--moss);
 }
 @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+
+.evidencias { display: flex; flex-wrap: wrap; gap: 10px; }
+.evidencia {
+  width: 110px; height: 110px; padding: 0; border: 1px solid var(--border);
+  border-radius: var(--radius-input); overflow: hidden; background: none;
+  transition: border-color .15s, transform .15s;
+}
+.evidencia:hover { border-color: var(--moss); transform: translateY(-2px); }
+.evidencia img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sin-evidencia { font-size: 13px; color: var(--text-secondary); }
+
+.lightbox {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(16, 24, 40, .8);
+  display: flex; align-items: center; justify-content: center;
+  padding: 32px;
+}
+.lightbox img {
+  max-width: 90vw; max-height: 88vh; border-radius: var(--radius-card);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, .4);
+}
+.lightbox .cerrar {
+  position: absolute; top: 20px; right: 24px;
+  width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, .15); color: #fff; border: none; border-radius: 50%;
+  font-size: 24px;
+}
+.lightbox .cerrar:hover { background: rgba(255, 255, 255, .3); }
 </style>
