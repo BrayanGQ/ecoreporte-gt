@@ -118,6 +118,26 @@ async function listarReportes(req, res) {
   }
 }
 
+// GET /api/reportes/mis-reportes — reportes del ciudadano autenticado (requiere auth).
+async function misReportes(req, res) {
+  try {
+    const result = await query(
+      `SELECT r.id_reporte, r.codigo_seguimiento, r.descripcion, r.fecha_reporte,
+              t.nombre_tipo, e.nombre_estado
+       FROM reporte r
+       JOIN tipo_incidencia t ON r.id_tipo_incidencia = t.id_tipo_incidencia
+       JOIN estado_reporte e   ON r.id_estado_actual = e.id_estado
+       WHERE r.id_usuario_reporta = $1
+       ORDER BY r.fecha_reporte DESC`,
+      [req.usuario.id_usuario]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error al obtener mis reportes:', err.message);
+    res.status(500).json({ error: 'Error al obtener tus reportes.' });
+  }
+}
+
 // GET /api/reportes/:codigo — consulta pública del estado de un reporte por su código.
 async function consultarPorCodigo(req, res) {
   const { codigo } = req.params;
@@ -265,5 +285,5 @@ async function actualizarEstado(req, res) {
 }
 
 module.exports = {
-  crearReporte, listarReportes, consultarPorCodigo, detalleReporte, actualizarEstado,
+  crearReporte, listarReportes, misReportes, consultarPorCodigo, detalleReporte, actualizarEstado,
 };

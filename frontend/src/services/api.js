@@ -34,8 +34,15 @@ export const reporteService = {
   crear: (datos) => api.post('/reportes', datos),
   listar: (filtros) => api.get('/reportes', { params: filtros }),
   consultar: (codigo) => api.get(`/reportes/consulta/${codigo}`),
+  misReportes: () => api.get('/reportes/mis-reportes'),
   detalle: (id) => api.get(`/reportes/${id}/detalle`),
   actualizarEstado: (id, datos) => api.put(`/reportes/${id}/estado`, datos),
+};
+
+// --- Notificaciones ---
+export const notificacionService = {
+  listar: () => api.get('/notificaciones'),
+  marcarLeida: (id) => api.put(`/notificaciones/${id}/leida`),
 };
 
 export default api;

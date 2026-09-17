@@ -12,6 +12,7 @@ import Registro from '../views/Registro.vue';
 import RecuperarPassword from '../views/RecuperarPassword.vue';
 import PanelMunicipal from '../views/PanelMunicipal.vue';
 import DetalleReporte from '../views/DetalleReporte.vue';
+import MisReportes from '../views/MisReportes.vue';
 
 const routes = [
   // Pantalla de bienvenida: punto de entrada, sin navbar.
@@ -28,6 +29,12 @@ const routes = [
       { path: 'login', name: 'login-ciudadano', component: Login, meta: { portal: 'ciudadano' } },
       { path: 'registro', name: 'registro', component: Registro },
       { path: 'recuperar', name: 'recuperar', component: RecuperarPassword },
+      {
+        path: 'mis-reportes',
+        name: 'mis-reportes',
+        component: MisReportes,
+        meta: { requiereAuthCiudadano: true },
+      },
     ],
   },
 
@@ -59,6 +66,8 @@ router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token');
   if (to.meta.requiereAuth && !token) {
     next({ name: 'login-municipal' });
+  } else if (to.meta.requiereAuthCiudadano && !token) {
+    next({ name: 'login-ciudadano' });
   } else {
     next();
   }

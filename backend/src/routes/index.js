@@ -5,6 +5,7 @@ const router = express.Router();
 const auth = require('../controllers/authController');
 const reportes = require('../controllers/reporteController');
 const catalogo = require('../controllers/catalogoController');
+const notificaciones = require('../controllers/notificacionController');
 const { verificarToken, permitirRoles } = require('../middleware/auth');
 
 // ---------- Autenticación (públicas) ----------
@@ -24,9 +25,16 @@ router.post('/reportes', reportes.crearReporte);
 router.get('/reportes', reportes.listarReportes);
 router.get('/reportes/consulta/:codigo', reportes.consultarPorCodigo);
 
+// Ciudadano autenticado: sus propios reportes.
+router.get('/reportes/mis-reportes', verificarToken, reportes.misReportes);
+
 // Gestión municipal: requieren autenticación y rol.
 router.get('/reportes/:id/detalle', verificarToken, reportes.detalleReporte);
 router.put('/reportes/:id/estado', verificarToken,
   permitirRoles('personal_municipal', 'administrador'), reportes.actualizarEstado);
+
+// ---------- Notificaciones (usuario autenticado) ----------
+router.get('/notificaciones', verificarToken, notificaciones.misNotificaciones);
+router.put('/notificaciones/:id/leida', verificarToken, notificaciones.marcarLeida);
 
 module.exports = router;
