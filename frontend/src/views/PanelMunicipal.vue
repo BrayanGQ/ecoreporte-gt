@@ -52,7 +52,7 @@ onMounted(cargar);
         </div>
       </div>
       <div class="stat-card">
-        <span class="stat-icon i-recibido"><i class="bx bx-inbox"></i></span>
+        <span class="stat-icon i-recibido"><i class="bx bx-archive-in"></i></span>
         <div>
           <div class="stat-number">{{ totalRecibidos }}</div>
           <div class="stat-label">Recibidos</div>

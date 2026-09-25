@@ -61,7 +61,7 @@ onMounted(cargar);
 
     <div class="card lista-card" v-if="!cargando">
       <div v-if="reportes.length === 0" class="vacio">
-        <i class="bx bx-inbox"></i>
+        <i class="bx bx-archive-in"></i>
         <p>Todavía no registraste ningún reporte con tu cuenta.</p>
       </div>
 

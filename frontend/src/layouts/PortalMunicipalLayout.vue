@@ -1,9 +1,12 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
 const usuario = ref(JSON.parse(localStorage.getItem('usuario') || 'null'));
+
+// La sección de administración solo se muestra al rol 'administrador'.
+const esAdministrador = computed(() => usuario.value?.rol === 'administrador');
 
 window.addEventListener('storage-updated', () => {
   usuario.value = JSON.parse(localStorage.getItem('usuario') || 'null');
@@ -29,6 +32,12 @@ function cerrarSesion() {
       </div>
       <nav>
         <router-link to="/municipal/panel"><i class="bx bx-grid-alt"></i> Reportes</router-link>
+
+        <template v-if="esAdministrador">
+          <span class="nav-group"><i class="bx bx-shield-quarter"></i> Administración</span>
+          <router-link to="/municipal/panel/admin/usuarios"><i class="bx bx-user"></i> Usuarios</router-link>
+          <router-link to="/municipal/panel/admin/catalogos"><i class="bx bx-cog"></i> Catálogos</router-link>
+        </template>
       </nav>
       <div class="footer">
         <span class="user" v-if="usuario"><i class="bx bx-user-circle"></i> {{ usuario.nombre_completo }}</span>
@@ -89,6 +98,20 @@ function cerrarSesion() {
 .sidebar nav a i { font-size: 18px; }
 .sidebar nav a:hover { background: rgba(255, 255, 255, .08); color: #fff; }
 .sidebar nav a.router-link-exact-active { background: var(--moss); color: var(--forest-dark); font-weight: 600; }
+/* Encabezado del grupo "Administración" (no es un enlace). */
+.nav-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 4px;
+  padding: 0 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: rgba(255, 255, 255, .45);
+}
+.nav-group i { font-size: 14px; }
 .footer {
   padding: 16px 20px 0;
   margin-top: 12px;
@@ -136,7 +159,9 @@ function cerrarSesion() {
     flex-wrap: wrap;
   }
   .brand { border: none; margin: 0; padding: 0; }
-  .sidebar nav { flex-direction: row; flex: none; padding: 0; }
+  .sidebar nav { flex-direction: row; flex: none; padding: 0; flex-wrap: wrap; }
+  /* En pantallas pequeñas los enlaces van en línea, sin el encabezado del grupo. */
+  .nav-group { display: none; }
   .footer {
     border: none;
     margin: 0;

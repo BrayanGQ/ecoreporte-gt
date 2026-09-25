@@ -13,6 +13,8 @@ import RecuperarPassword from '../views/RecuperarPassword.vue';
 import PanelMunicipal from '../views/PanelMunicipal.vue';
 import DetalleReporte from '../views/DetalleReporte.vue';
 import MisReportes from '../views/MisReportes.vue';
+import AdminUsuarios from '../views/AdminUsuarios.vue';
+import AdminCatalogos from '../views/AdminCatalogos.vue';
 
 const routes = [
   // Pantalla de bienvenida: punto de entrada, sin navbar.
@@ -52,6 +54,19 @@ const routes = [
     children: [
       { path: '', name: 'panel', component: PanelMunicipal },
       { path: 'reporte/:id', name: 'detalle', component: DetalleReporte },
+      // Administración: solo accesible con el rol 'administrador'.
+      {
+        path: 'admin/usuarios',
+        name: 'admin-usuarios',
+        component: AdminUsuarios,
+        meta: { requiereAdmin: true },
+      },
+      {
+        path: 'admin/catalogos',
+        name: 'admin-catalogos',
+        component: AdminCatalogos,
+        meta: { requiereAdmin: true },
+      },
     ],
   },
 ];
@@ -64,10 +79,15 @@ const router = createRouter({
 // Guarda de navegación: protege las rutas del panel municipal.
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token');
+  const usuario = JSON.parse(localStorage.getItem('usuario') || 'null');
+
   if (to.meta.requiereAuth && !token) {
     next({ name: 'login-municipal' });
   } else if (to.meta.requiereAuthCiudadano && !token) {
     next({ name: 'login-ciudadano' });
+  } else if (to.meta.requiereAdmin && (!usuario || usuario.rol !== 'administrador')) {
+    // El personal municipal normal no puede entrar a las vistas de administración.
+    next({ name: 'panel' });
   } else {
     next();
   }

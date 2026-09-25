@@ -21,10 +21,10 @@ const colores = {
 function iconoColor(color) {
   return L.divIcon({
     className: '',
-    html: `<div style="width:18px;height:18px;border-radius:50% 50% 50% 0;background:${color};
-           border:2px solid #fff;box-shadow:0 2px 4px rgba(0,0,0,.4);transform:rotate(-45deg)"></div>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 18],
+    html: `<i class="bx bxs-map" style="color:${color};font-size:24px;line-height:1;
+           -webkit-text-stroke:1px #fff;text-shadow:0 2px 4px rgba(0,0,0,.4)"></i>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 24],
   });
 }
 
@@ -95,11 +95,11 @@ onMounted(async () => {
     <div id="mapaFull" class="mapa-box"></div>
 
     <div class="leyenda">
-      <span><i class="dot" style="background:#E74C3C"></i>Recibido</span>
-      <span><i class="dot" style="background:#5B8DEF"></i>Asignado</span>
-      <span><i class="dot" style="background:#E0A800"></i>En atención</span>
-      <span><i class="dot" style="background:#97BC62"></i>Resuelto</span>
-      <span><i class="dot" style="background:#999"></i>Descartado</span>
+      <span><i class="bx bxs-map" style="color:#E74C3C"></i>Recibido</span>
+      <span><i class="bx bxs-map" style="color:#5B8DEF"></i>Asignado</span>
+      <span><i class="bx bxs-map" style="color:#E0A800"></i>En atención</span>
+      <span><i class="bx bxs-map" style="color:#97BC62"></i>Resuelto</span>
+      <span><i class="bx bxs-map" style="color:#999"></i>Descartado</span>
     </div>
   </div>
 </template>
@@ -114,5 +114,5 @@ onMounted(async () => {
   background: #fff; border: 1px solid var(--border); border-radius: var(--radius-card); font-size: 13px;
 }
 .leyenda span { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
-.leyenda .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.leyenda .bxs-map { font-size: 15px; line-height: 1; }
 </style>

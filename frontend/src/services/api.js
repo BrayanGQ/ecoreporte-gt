@@ -39,6 +39,25 @@ export const reporteService = {
   actualizarEstado: (id, datos) => api.put(`/reportes/${id}/estado`, datos),
 };
 
+// --- Administración (solo rol administrador) ---
+export const adminService = {
+  // Usuarios de personal municipal
+  usuarios: () => api.get('/admin/usuarios'),
+  roles: () => api.get('/admin/roles'),
+  crearUsuario: (datos) => api.post('/admin/usuarios', datos),
+  cambiarEstadoUsuario: (id, estado) => api.put(`/admin/usuarios/${id}/estado`, { estado }),
+
+  // Catálogo de tipos de incidencia
+  tipos: () => api.get('/admin/tipos-incidencia'),
+  crearTipo: (datos) => api.post('/admin/tipos-incidencia', datos),
+  editarTipo: (id, datos) => api.put(`/admin/tipos-incidencia/${id}`, datos),
+
+  // Catálogo de municipalidades
+  municipalidades: () => api.get('/admin/municipalidades'),
+  crearMunicipalidad: (datos) => api.post('/admin/municipalidades', datos),
+  editarMunicipalidad: (id, datos) => api.put(`/admin/municipalidades/${id}`, datos),
+};
+
 // --- Notificaciones ---
 export const notificacionService = {
   listar: () => api.get('/notificaciones'),

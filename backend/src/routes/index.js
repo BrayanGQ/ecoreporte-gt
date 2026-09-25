@@ -6,7 +6,12 @@ const auth = require('../controllers/authController');
 const reportes = require('../controllers/reporteController');
 const catalogo = require('../controllers/catalogoController');
 const notificaciones = require('../controllers/notificacionController');
+const admin = require('../controllers/adminController');
 const { verificarToken, permitirRoles } = require('../middleware/auth');
+
+// Middleware reutilizado por todas las rutas de administración:
+// exige token válido y rol 'administrador'.
+const soloAdmin = [verificarToken, permitirRoles('administrador')];
 
 // ---------- Autenticación (públicas) ----------
 router.post('/auth/registro', auth.registro);
@@ -36,5 +41,21 @@ router.put('/reportes/:id/estado', verificarToken,
 // ---------- Notificaciones (usuario autenticado) ----------
 router.get('/notificaciones', verificarToken, notificaciones.misNotificaciones);
 router.put('/notificaciones/:id/leida', verificarToken, notificaciones.marcarLeida);
+
+// ---------- Administración (solo rol 'administrador') ----------
+// Gestión de cuentas de personal municipal.
+router.get('/admin/usuarios', soloAdmin, admin.listarUsuarios);
+router.post('/admin/usuarios', soloAdmin, admin.crearUsuario);
+router.put('/admin/usuarios/:id/estado', soloAdmin, admin.cambiarEstadoUsuario);
+router.get('/admin/roles', soloAdmin, admin.listarRoles);
+
+// Configuración de catálogos.
+router.get('/admin/tipos-incidencia', soloAdmin, admin.listarTiposIncidencia);
+router.post('/admin/tipos-incidencia', soloAdmin, admin.crearTipoIncidencia);
+router.put('/admin/tipos-incidencia/:id', soloAdmin, admin.editarTipoIncidencia);
+
+router.get('/admin/municipalidades', soloAdmin, admin.listarMunicipalidades);
+router.post('/admin/municipalidades', soloAdmin, admin.crearMunicipalidad);
+router.put('/admin/municipalidades/:id', soloAdmin, admin.editarMunicipalidad);
 
 module.exports = router;
