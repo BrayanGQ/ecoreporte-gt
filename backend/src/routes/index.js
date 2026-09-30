@@ -7,11 +7,15 @@ const reportes = require('../controllers/reporteController');
 const catalogo = require('../controllers/catalogoController');
 const notificaciones = require('../controllers/notificacionController');
 const admin = require('../controllers/adminController');
+const estadisticas = require('../controllers/estadisticaController');
 const { verificarToken, permitirRoles } = require('../middleware/auth');
 
 // Middleware reutilizado por todas las rutas de administración:
 // exige token válido y rol 'administrador'.
 const soloAdmin = [verificarToken, permitirRoles('administrador')];
+
+// Middleware para rutas del personal: token válido y rol municipal o administrador.
+const personalMunicipal = [verificarToken, permitirRoles('personal_municipal', 'administrador')];
 
 // ---------- Autenticación (públicas) ----------
 router.post('/auth/registro', auth.registro);
@@ -41,6 +45,12 @@ router.put('/reportes/:id/estado', verificarToken,
 // ---------- Notificaciones (usuario autenticado) ----------
 router.get('/notificaciones', verificarToken, notificaciones.misNotificaciones);
 router.put('/notificaciones/:id/leida', verificarToken, notificaciones.marcarLeida);
+
+// ---------- Estadísticas (personal municipal y administrador) ----------
+// Aceptan ?fecha_inicio=YYYY-MM-DD&fecha_fin=YYYY-MM-DD (opcionales, inclusivos).
+router.get('/estadisticas/por-estado', personalMunicipal, estadisticas.porEstado);
+router.get('/estadisticas/por-tipo', personalMunicipal, estadisticas.porTipo);
+router.get('/estadisticas/resumen', personalMunicipal, estadisticas.resumen);
 
 // ---------- Administración (solo rol 'administrador') ----------
 // Gestión de cuentas de personal municipal.
