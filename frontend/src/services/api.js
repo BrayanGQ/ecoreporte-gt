@@ -39,6 +39,13 @@ export const reporteService = {
   actualizarEstado: (id, datos) => api.put(`/reportes/${id}/estado`, datos),
 };
 
+// --- Estadísticas (personal municipal y administrador) ---
+export const estadisticaService = {
+  resumen: (filtros) => api.get('/estadisticas/resumen', { params: filtros }),
+  porEstado: (filtros) => api.get('/estadisticas/por-estado', { params: filtros }),
+  porTipo: (filtros) => api.get('/estadisticas/por-tipo', { params: filtros }),
+};
+
 // --- Administración (solo rol administrador) ---
 export const adminService = {
   // Usuarios de personal municipal

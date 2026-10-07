@@ -8,6 +8,9 @@ const usuario = ref(JSON.parse(localStorage.getItem('usuario') || 'null'));
 // La sección de administración solo se muestra al rol 'administrador'.
 const esAdministrador = computed(() => usuario.value?.rol === 'administrador');
 
+// Estadísticas: visibles para el personal municipal y el administrador.
+const esPersonal = computed(() => ['personal_municipal', 'administrador'].includes(usuario.value?.rol));
+
 window.addEventListener('storage-updated', () => {
   usuario.value = JSON.parse(localStorage.getItem('usuario') || 'null');
 });
@@ -32,6 +35,7 @@ function cerrarSesion() {
       </div>
       <nav>
         <router-link to="/municipal/panel"><i class="bx bx-grid-alt"></i> Reportes</router-link>
+        <router-link v-if="esPersonal" to="/municipal/panel/estadisticas"><i class="bx bx-bar-chart-alt-2"></i> Estadísticas</router-link>
 
         <template v-if="esAdministrador">
           <span class="nav-group"><i class="bx bx-shield-quarter"></i> Administración</span>

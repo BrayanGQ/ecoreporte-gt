@@ -15,6 +15,7 @@ import DetalleReporte from '../views/DetalleReporte.vue';
 import MisReportes from '../views/MisReportes.vue';
 import AdminUsuarios from '../views/AdminUsuarios.vue';
 import AdminCatalogos from '../views/AdminCatalogos.vue';
+import Estadisticas from '../views/Estadisticas.vue';
 
 const routes = [
   // Pantalla de bienvenida: punto de entrada, sin navbar.
@@ -54,6 +55,7 @@ const routes = [
     children: [
       { path: '', name: 'panel', component: PanelMunicipal },
       { path: 'reporte/:id', name: 'detalle', component: DetalleReporte },
+      { path: 'estadisticas', name: 'estadisticas', component: Estadisticas },
       // Administración: solo accesible con el rol 'administrador'.
       {
         path: 'admin/usuarios',
