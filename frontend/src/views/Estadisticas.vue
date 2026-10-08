@@ -1,10 +1,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { Doughnut } from 'vue-chartjs';
-import { Chart as ChartJS, ArcElement, Tooltip } from 'chart.js';
+import { Doughnut, Bar } from 'vue-chartjs';
+import { Chart as ChartJS, ArcElement, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
 import { estadisticaService } from '../services/api';
 
-ChartJS.register(ArcElement, Tooltip);
+ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip);
 
 // Presentación de cada estado: etiqueta legible, ícono, color de la gráfica y clase de la tarjeta.
 const ESTADOS = {
@@ -17,8 +17,28 @@ const ESTADOS = {
 
 const resumen = ref(null);
 const porEstado = ref([]);
+const porTipo = ref([]);
 const error = ref('');
-const cargando = ref(true);
+const cargando = ref(true);      // primera carga: oculta el contenido
+const actualizando = ref(false); // recarga por filtro: atenúa el contenido sin ocultarlo
+
+// Filtro por rango de fechas (los inputs type="date" ya entregan YYYY-MM-DD).
+const fechaInicio = ref('');
+const fechaFin = ref('');
+const filtroAplicado = ref(null); // { fecha_inicio?, fecha_fin? } vigente, o null
+
+function fechaLegible(f) {
+  const [a, m, d] = f.split('-');
+  return `${d}/${m}/${a}`;
+}
+
+const descripcionFiltro = computed(() => {
+  const f = filtroAplicado.value;
+  if (!f) return '';
+  if (f.fecha_inicio && f.fecha_fin) return `del ${fechaLegible(f.fecha_inicio)} al ${fechaLegible(f.fecha_fin)}`;
+  if (f.fecha_inicio) return `desde el ${fechaLegible(f.fecha_inicio)}`;
+  return `hasta el ${fechaLegible(f.fecha_fin)}`;
+});
 
 // Tarjetas: total + una por cada estado, en el orden que define el catálogo.
 const tarjetas = computed(() => {
@@ -37,6 +57,7 @@ const tarjetas = computed(() => {
   ];
 });
 
+// ---------- Gráfica de dona: reportes por estado ----------
 const totalGrafica = computed(() => porEstado.value.reduce((s, e) => s + e.cantidad, 0));
 
 function porcentaje(cantidad) {
@@ -72,23 +93,119 @@ const opcionesGrafica = {
   },
 };
 
-async function cargar() {
-  cargando.value = true;
+// ---------- Gráfica de barras: reportes por tipo de incidencia ----------
+// Parte un nombre largo en varias líneas para que no se corte en pantallas angostas.
+function envolverEtiqueta(texto, max = 18) {
+  const lineas = [];
+  let actual = '';
+  for (const palabra of String(texto).split(' ')) {
+    if (actual && (actual + ' ' + palabra).length > max) {
+      lineas.push(actual);
+      actual = palabra;
+    } else {
+      actual = actual ? `${actual} ${palabra}` : palabra;
+    }
+  }
+  if (actual) lineas.push(actual);
+  return lineas;
+}
+
+const totalPorTipo = computed(() => porTipo.value.reduce((s, t) => s + t.cantidad, 0));
+
+// Barras horizontales: los nombres de los tipos son largos y así se leen completos.
+// La altura crece con la cantidad de tipos para que las barras no se aplasten.
+const alturaBarras = computed(() => `${Math.max(porTipo.value.length * 52 + 48, 200)}px`);
+
+const datosBarras = computed(() => ({
+  labels: porTipo.value.map((t) => t.nombre_tipo),
+  datasets: [{
+    label: 'Reportes',
+    data: porTipo.value.map((t) => t.cantidad),
+    backgroundColor: '#2C5F2D',
+    hoverBackgroundColor: '#243D20',
+    borderRadius: 4,
+    borderSkipped: 'start', // redondea solo el extremo del dato, no la base
+    maxBarThickness: 28,
+  }],
+}));
+
+const opcionesBarras = {
+  indexAxis: 'y',
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      callbacks: {
+        label: (ctx) => ` ${ctx.parsed.x} ${ctx.parsed.x === 1 ? 'reporte' : 'reportes'}`,
+      },
+    },
+  },
+  scales: {
+    x: {
+      beginAtZero: true,
+      ticks: { precision: 0, color: '#667085' },
+      grid: { color: '#EEF0F3' },
+      border: { display: false },
+    },
+    y: {
+      ticks: {
+        color: '#3A3A3A',
+        font: { size: 13 },
+        callback(valor) {
+          const etiqueta = this.getLabelForValue(valor);
+          return window.innerWidth < 640 ? envolverEtiqueta(etiqueta) : etiqueta;
+        },
+      },
+      grid: { display: false },
+      border: { color: '#E4E7EC' },
+    },
+  },
+};
+
+// ---------- Carga de datos ----------
+async function cargar(filtros = {}) {
+  if (resumen.value) actualizando.value = true;
+  else cargando.value = true;
   error.value = '';
   try {
-    const [r, e] = await Promise.all([estadisticaService.resumen(), estadisticaService.porEstado()]);
+    const [r, e, t] = await Promise.all([
+      estadisticaService.resumen(filtros),
+      estadisticaService.porEstado(filtros),
+      estadisticaService.porTipo(filtros),
+    ]);
     resumen.value = r.data;
     porEstado.value = e.data;
+    porTipo.value = t.data;
+    filtroAplicado.value = Object.keys(filtros).length ? filtros : null;
   } catch (err) {
-    error.value = err.response?.status === 403
-      ? 'No tenés permiso para ver las estadísticas.'
-      : 'No se pudieron cargar las estadísticas.';
+    if (err.response?.status === 403) error.value = 'No tenés permiso para ver las estadísticas.';
+    else if (err.response?.status === 400) error.value = err.response.data?.error || 'El rango de fechas no es válido.';
+    else error.value = 'No se pudieron cargar las estadísticas.';
   } finally {
     cargando.value = false;
+    actualizando.value = false;
   }
 }
 
-onMounted(cargar);
+function aplicarFiltro() {
+  if (fechaInicio.value && fechaFin.value && fechaInicio.value > fechaFin.value) {
+    error.value = 'La fecha de inicio no puede ser posterior a la fecha de fin.';
+    return;
+  }
+  const filtros = {};
+  if (fechaInicio.value) filtros.fecha_inicio = fechaInicio.value;
+  if (fechaFin.value) filtros.fecha_fin = fechaFin.value;
+  cargar(filtros);
+}
+
+function limpiarFiltro() {
+  fechaInicio.value = '';
+  fechaFin.value = '';
+  cargar();
+}
+
+onMounted(() => cargar());
 </script>
 
 <template>
@@ -96,10 +213,42 @@ onMounted(cargar);
     <h1 class="title">Estadísticas</h1>
     <p class="sub">Resumen general de los reportes registrados en la plataforma.</p>
 
+    <!-- Filtro por rango de fechas -->
+    <form class="card filter-card" @submit.prevent="aplicarFiltro">
+      <div class="filter-head">
+        <i class="bx bx-calendar"></i>
+        <span>Filtrar por fecha de reporte</span>
+      </div>
+      <div class="filter-row">
+        <div class="field">
+          <label for="fecha-inicio">Fecha inicio</label>
+          <input id="fecha-inicio" type="date" v-model="fechaInicio" :max="fechaFin || undefined" />
+        </div>
+        <div class="field">
+          <label for="fecha-fin">Fecha fin</label>
+          <input id="fecha-fin" type="date" v-model="fechaFin" :min="fechaInicio || undefined" />
+        </div>
+        <div class="filter-actions">
+          <button type="submit" class="btn" :disabled="(!fechaInicio && !fechaFin) || actualizando">
+            <i class="bx bx-filter-alt"></i> Aplicar
+          </button>
+          <button type="button" class="btn ghost" :disabled="(!filtroAplicado && !fechaInicio && !fechaFin) || actualizando"
+                  @click="limpiarFiltro">
+            <i class="bx bx-x"></i> Limpiar
+          </button>
+        </div>
+      </div>
+      <p class="filter-status">
+        <i class="bx" :class="filtroAplicado ? 'bx-calendar-check' : 'bx-infinite'"></i>
+        <template v-if="filtroAplicado">Mostrando reportes <strong>{{ descripcionFiltro }}</strong></template>
+        <template v-else>Mostrando todos los reportes, sin rango de fechas</template>
+      </p>
+    </form>
+
     <div v-if="error" class="alert error"><i class="bx bx-error-circle"></i> {{ error }}</div>
     <div v-if="cargando" class="alert ok"><i class="bx bx-loader-alt bx-spin"></i> Cargando estadísticas...</div>
 
-    <template v-if="!cargando && resumen">
+    <div v-if="!cargando && resumen" class="results" :class="{ dimmed: actualizando }">
       <div class="stats">
         <div v-for="t in tarjetas" :key="t.clave" class="stat-card">
           <span class="stat-icon" :class="'i-' + t.clave"><i class="bx" :class="t.icono"></i></span>
@@ -113,7 +262,9 @@ onMounted(cargar);
       <div class="card chart-card">
         <h2 class="card-title"><i class="bx bx-pie-chart-alt-2"></i> Distribución de reportes por estado</h2>
 
-        <p v-if="totalGrafica === 0" class="empty">Todavía no hay reportes para graficar.</p>
+        <p v-if="totalGrafica === 0" class="empty">
+          {{ filtroAplicado ? 'No hay reportes en el rango de fechas seleccionado.' : 'Todavía no hay reportes para graficar.' }}
+        </p>
 
         <div v-else class="chart-body">
           <div class="chart-wrap">
@@ -134,11 +285,58 @@ onMounted(cargar);
           </ul>
         </div>
       </div>
-    </template>
+
+      <div class="card chart-card">
+        <h2 class="card-title"><i class="bx bx-bar-chart-alt-2"></i> Reportes por tipo de incidencia</h2>
+
+        <p v-if="totalPorTipo === 0" class="empty">
+          {{ filtroAplicado ? 'No hay reportes en el rango de fechas seleccionado.' : 'Todavía no hay reportes para graficar.' }}
+        </p>
+
+        <div v-else class="bar-wrap" :style="{ height: alturaBarras }">
+          <Bar :data="datosBarras" :options="opcionesBarras" />
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
+/* ---------- Filtro ---------- */
+.filter-card { padding: 20px 24px; margin-bottom: 24px; }
+.filter-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--forest-dark);
+}
+.filter-head i { font-size: 20px; color: var(--forest); }
+.filter-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.field { flex: 1 1 180px; }
+.field label { margin-top: 12px; }
+.filter-actions { display: flex; gap: 10px; }
+.filter-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.filter-status i { font-size: 16px; color: var(--forest); }
+.filter-status strong { color: var(--slate); }
+
+.results { transition: opacity .15s; }
+.results.dimmed { opacity: .55; pointer-events: none; }
+
+/* ---------- Tarjetas ---------- */
 .stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -175,7 +373,8 @@ onMounted(cargar);
 .stat-number { font-size: 28px; font-weight: 700; color: var(--slate); line-height: 1.15; }
 .stat-label { font-size: 13px; color: var(--text-secondary); }
 
-.chart-card { padding: 24px; }
+/* ---------- Gráficas ---------- */
+.chart-card { padding: 24px; margin-bottom: 24px; }
 .card-title {
   display: flex;
   align-items: center;
@@ -232,6 +431,8 @@ onMounted(cargar);
 .legend-value { font-weight: 700; color: var(--slate); }
 .legend-pct { text-align: right; color: var(--text-secondary); font-size: 13px; }
 
+.bar-wrap { position: relative; width: 100%; }
+
 .empty { text-align: center; padding: 28px; color: var(--text-secondary); }
 
 @media (max-width: 768px) {
@@ -242,5 +443,7 @@ onMounted(cargar);
 }
 @media (max-width: 480px) {
   .stats { grid-template-columns: 1fr; }
+  .filter-actions { width: 100%; }
+  .filter-actions .btn { flex: 1; }
 }
 </style>
