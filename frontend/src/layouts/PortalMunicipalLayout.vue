@@ -68,6 +68,12 @@ function cerrarSesion() {
   display: flex;
   flex-direction: column;
   padding: 20px 0;
+  /* Fijo a la altura de la ventana: en vistas largas el pie (cerrar sesión)
+     sigue visible sin tener que bajar hasta el final de la página. */
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 .brand {
   display: flex;
@@ -156,6 +162,9 @@ function cerrarSesion() {
   .layout { flex-direction: column; }
   .sidebar {
     width: 100%;
+    position: static;
+    height: auto;
+    overflow: visible;
     flex-direction: row;
     align-items: center;
     padding: 10px 16px;

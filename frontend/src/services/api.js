@@ -6,9 +6,10 @@ const api = axios.create({
 });
 
 // Interceptor: adjunta automáticamente el token JWT si el usuario inició sesión.
+// Las consultas marcadas con { publico: true } se envían siempre sin token.
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) {
+  if (token && !config.publico) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
@@ -32,11 +33,15 @@ export const catalogoService = {
 // --- Reportes ---
 export const reporteService = {
   crear: (datos) => api.post('/reportes', datos),
+  // Con sesión iniciada, el backend limita el listado al alcance del rol (panel municipal).
   listar: (filtros) => api.get('/reportes', { params: filtros }),
+  // Listado público del mapa: sin token, siempre muestra todos los reportes.
+  listarPublico: (filtros) => api.get('/reportes', { params: filtros, publico: true }),
   consultar: (codigo) => api.get(`/reportes/consulta/${codigo}`),
   misReportes: () => api.get('/reportes/mis-reportes'),
   detalle: (id) => api.get(`/reportes/${id}/detalle`),
   actualizarEstado: (id, datos) => api.put(`/reportes/${id}/estado`, datos),
+  asignables: (id) => api.get(`/reportes/${id}/asignables`),
 };
 
 // --- Estadísticas (personal municipal y administrador) ---

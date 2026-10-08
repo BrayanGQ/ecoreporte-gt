@@ -8,7 +8,7 @@ const catalogo = require('../controllers/catalogoController');
 const notificaciones = require('../controllers/notificacionController');
 const admin = require('../controllers/adminController');
 const estadisticas = require('../controllers/estadisticaController');
-const { verificarToken, permitirRoles } = require('../middleware/auth');
+const { verificarToken, tokenOpcional, permitirRoles } = require('../middleware/auth');
 
 // Middleware reutilizado por todas las rutas de administración:
 // exige token válido y rol 'administrador'.
@@ -31,7 +31,8 @@ router.get('/catalogos/municipalidades', catalogo.municipalidades);
 // ---------- Reportes ----------
 // Registro ciudadano y consulta pública: no requieren autenticación.
 router.post('/reportes', reportes.crearReporte);
-router.get('/reportes', reportes.listarReportes);
+// Listado público (mapa); con token, se limita al alcance del rol (ver listarReportes).
+router.get('/reportes', tokenOpcional, reportes.listarReportes);
 router.get('/reportes/consulta/:codigo', reportes.consultarPorCodigo);
 
 // Ciudadano autenticado: sus propios reportes.
@@ -41,6 +42,8 @@ router.get('/reportes/mis-reportes', verificarToken, reportes.misReportes);
 router.get('/reportes/:id/detalle', verificarToken, reportes.detalleReporte);
 router.put('/reportes/:id/estado', verificarToken,
   permitirRoles('personal_municipal', 'administrador'), reportes.actualizarEstado);
+router.get('/reportes/:id/asignables', verificarToken,
+  permitirRoles('personal_municipal', 'administrador'), reportes.empleadosAsignables);
 
 // ---------- Notificaciones (usuario autenticado) ----------
 router.get('/notificaciones', verificarToken, notificaciones.misNotificaciones);

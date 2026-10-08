@@ -34,7 +34,7 @@ async function cargarReportes() {
     const params = {};
     if (filtros.value.estado) params.estado = filtros.value.estado;
     if (filtros.value.tipo) params.tipo = filtros.value.tipo;
-    const { data } = await reporteService.listar(params);
+    const { data } = await reporteService.listarPublico(params);
 
     capaMarcadores.clearLayers();
     data.forEach((r) => {

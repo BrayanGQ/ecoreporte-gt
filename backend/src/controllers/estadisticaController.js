@@ -11,13 +11,26 @@ function fechaValida(valor) {
   return !isNaN(d) && d.toISOString().slice(0, 10) === valor;
 }
 
-// Construye la condición de rango de fechas sobre r.fecha_reporte a partir de
-// los parámetros opcionales fecha_inicio y fecha_fin (ambos inclusivos, formato YYYY-MM-DD).
+// Construye las condiciones sobre los reportes a partir de:
+// - el alcance del rol: personal_municipal solo ve su municipalidad; el administrador ve
+//   todo y puede filtrar con ?id_municipalidad= (opcional).
+// - los parámetros opcionales fecha_inicio y fecha_fin (ambos inclusivos, formato YYYY-MM-DD).
 // Devuelve { condicion, params } o { error } si los parámetros no son válidos.
-function filtroFechas(req) {
-  const { fecha_inicio, fecha_fin } = req.query;
+function filtroEstadisticas(req) {
+  const { fecha_inicio, fecha_fin, id_municipalidad } = req.query;
   const condiciones = [];
   const params = [];
+
+  if (req.usuario.rol === 'personal_municipal') {
+    params.push(req.usuario.id_municipalidad);
+    condiciones.push(`r.id_municipalidad = $${params.length}`);
+  } else if (id_municipalidad !== undefined && id_municipalidad !== '') {
+    if (!/^\d+$/.test(id_municipalidad)) {
+      return { error: 'id_municipalidad debe ser un número entero.' };
+    }
+    params.push(Number(id_municipalidad));
+    condiciones.push(`r.id_municipalidad = $${params.length}`);
+  }
 
   if (fecha_inicio !== undefined && fecha_inicio !== '') {
     if (!fechaValida(fecha_inicio)) {
@@ -60,7 +73,7 @@ async function conteoPorEstado(condicion, params) {
 
 // GET /api/estadisticas/por-estado
 async function porEstado(req, res) {
-  const filtro = filtroFechas(req);
+  const filtro = filtroEstadisticas(req);
   if (filtro.error) return res.status(400).json({ error: filtro.error });
 
   try {
@@ -73,7 +86,7 @@ async function porEstado(req, res) {
 
 // GET /api/estadisticas/por-tipo — incluye todos los tipos de incidencia, aun con cantidad 0.
 async function porTipo(req, res) {
-  const filtro = filtroFechas(req);
+  const filtro = filtroEstadisticas(req);
   if (filtro.error) return res.status(400).json({ error: filtro.error });
 
   try {
@@ -96,7 +109,7 @@ async function porTipo(req, res) {
 
 // GET /api/estadisticas/resumen — total de reportes y conteo por estado, para tarjetas de resumen.
 async function resumen(req, res) {
-  const filtro = filtroFechas(req);
+  const filtro = filtroEstadisticas(req);
   if (filtro.error) return res.status(400).json({ error: filtro.error });
 
   try {

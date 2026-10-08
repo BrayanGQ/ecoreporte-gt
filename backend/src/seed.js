@@ -8,6 +8,8 @@ async function seed() {
     { correo: 'admin@ecoreporte.gt',     password: 'password123' },
     { correo: 'municipal@ecoreporte.gt', password: 'password123' },
     { correo: 'ciudadano@ecoreporte.gt', password: 'password123' },
+    // Requiere haber corrido database/04_rol_cuadrilla.sql.
+    { correo: 'cuadrilla@ecoreporte.gt', password: 'password123' },
   ];
 
   try {

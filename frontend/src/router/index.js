@@ -55,7 +55,13 @@ const routes = [
     children: [
       { path: '', name: 'panel', component: PanelMunicipal },
       { path: 'reporte/:id', name: 'detalle', component: DetalleReporte },
-      { path: 'estadisticas', name: 'estadisticas', component: Estadisticas },
+      {
+        path: 'estadisticas',
+        name: 'estadisticas',
+        component: Estadisticas,
+        // El encargado de cuadrilla no tiene acceso a estadísticas.
+        meta: { roles: ['personal_municipal', 'administrador'] },
+      },
       // Administración: solo accesible con el rol 'administrador'.
       {
         path: 'admin/usuarios',
@@ -89,6 +95,9 @@ router.beforeEach((to, from, next) => {
     next({ name: 'login-ciudadano' });
   } else if (to.meta.requiereAdmin && (!usuario || usuario.rol !== 'administrador')) {
     // El personal municipal normal no puede entrar a las vistas de administración.
+    next({ name: 'panel' });
+  } else if (to.meta.roles && (!usuario || !to.meta.roles.includes(usuario.rol))) {
+    // Vistas restringidas a ciertos roles: el resto vuelve a la lista de reportes.
     next({ name: 'panel' });
   } else {
     next();

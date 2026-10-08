@@ -22,6 +22,20 @@ function verificarToken(req, res, next) {
   }
 }
 
+// Para rutas públicas que ajustan su respuesta según quién consulta: si viene un
+// token válido, carga req.usuario; si no viene (o es inválido), sigue como anónimo.
+function tokenOpcional(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      req.usuario = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
+    } catch (err) {
+      // Token inválido o expirado: se atiende como consulta pública.
+    }
+  }
+  next();
+}
+
 // Restringe el acceso a los roles indicados. Uso: permitirRoles('administrador')
 function permitirRoles(...rolesPermitidos) {
   return (req, res, next) => {
@@ -32,4 +46,4 @@ function permitirRoles(...rolesPermitidos) {
   };
 }
 
-module.exports = { verificarToken, permitirRoles, JWT_SECRET };
+module.exports = { verificarToken, tokenOpcional, permitirRoles, JWT_SECRET };

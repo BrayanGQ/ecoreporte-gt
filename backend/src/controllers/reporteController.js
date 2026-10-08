@@ -7,6 +7,20 @@ function generarCodigo(id) {
   return `ER-${anio}-${String(id).padStart(4, '0')}`;
 }
 
+// Alcance por rol sobre un reporte ({ id_municipalidad, id_usuario_asignado }):
+// el administrador ve todos; personal_municipal (coordinador) solo los de su municipalidad;
+// encargado_cuadrilla solo los asignados a él. Cualquier otro rol, ninguno.
+function puedeVerReporte(usuario, reporte) {
+  switch (usuario?.rol) {
+    case 'administrador': return true;
+    case 'personal_municipal': return reporte.id_municipalidad === usuario.id_municipalidad;
+    case 'encargado_cuadrilla': return reporte.id_usuario_asignado === usuario.id_usuario;
+    default: return false;
+  }
+}
+
+const SIN_ACCESO = 'No tenés acceso a este reporte.';
+
 // POST /api/reportes — registro de un reporte ciudadano (público, sin autenticación).
 async function crearReporte(req, res) {
   const {
@@ -86,11 +100,19 @@ async function crearReporte(req, res) {
 }
 
 // GET /api/reportes — listado de reportes con filtros. Para el mapa y el panel.
+// Público (el mapa lo consulta sin token). Si viene un token, se limita el alcance:
+// personal_municipal ve solo su municipalidad y encargado_cuadrilla solo lo asignado a él.
 async function listarReportes(req, res) {
   const { estado, tipo, municipalidad } = req.query;
   const condiciones = [];
   const params = [];
   let i = 1;
+
+  if (req.usuario?.rol === 'personal_municipal') {
+    condiciones.push(`r.id_municipalidad = $${i++}`); params.push(req.usuario.id_municipalidad);
+  } else if (req.usuario?.rol === 'encargado_cuadrilla') {
+    condiciones.push(`r.id_usuario_asignado = $${i++}`); params.push(req.usuario.id_usuario);
+  }
 
   if (estado) { condiciones.push(`e.nombre_estado = $${i++}`); params.push(estado); }
   if (tipo) { condiciones.push(`r.id_tipo_incidencia = $${i++}`); params.push(tipo); }
@@ -195,6 +217,9 @@ async function detalleReporte(req, res) {
     if (reporteRes.rows.length === 0) {
       return res.status(404).json({ error: 'Reporte no encontrado.' });
     }
+    if (!puedeVerReporte(req.usuario, reporteRes.rows[0])) {
+      return res.status(403).json({ error: SIN_ACCESO });
+    }
 
     const evidencias = await query(
       'SELECT id_evidencia, url_imagen, tipo_evidencia, fecha_carga FROM evidencia_fotografica WHERE id_reporte = $1',
@@ -220,12 +245,53 @@ async function detalleReporte(req, res) {
   }
 }
 
+// Empleados a los que se puede asignar un reporte: personal municipal o administradores
+// activos de la municipalidad indicada ($1). Se reutiliza para validar una asignación.
+const SQL_ASIGNABLES = `
+  SELECT u.id_usuario, u.nombre_completo
+  FROM usuario u
+  JOIN rol r ON u.id_rol = r.id_rol
+  WHERE r.nombre_rol IN ('personal_municipal', 'administrador')
+    AND u.estado = TRUE
+    AND u.id_municipalidad = $1`;
+
+// GET /api/reportes/:id/asignables — empleados de la misma municipalidad del reporte.
+async function empleadosAsignables(req, res) {
+  const { id } = req.params;
+  try {
+    const reporteRes = await query(
+      'SELECT id_municipalidad, id_usuario_asignado FROM reporte WHERE id_reporte = $1',
+      [id]
+    );
+    if (reporteRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Reporte no encontrado.' });
+    }
+    if (!puedeVerReporte(req.usuario, reporteRes.rows[0])) {
+      return res.status(403).json({ error: SIN_ACCESO });
+    }
+    const r = await query(`${SQL_ASIGNABLES} ORDER BY u.nombre_completo`, [reporteRes.rows[0].id_municipalidad]);
+    res.json(r.rows);
+  } catch (err) {
+    console.error('Error al obtener empleados asignables:', err.message);
+    res.status(500).json({ error: 'Error al obtener los empleados asignables.' });
+  }
+}
+
 // PUT /api/reportes/:id/estado — actualiza el estado (personal municipal / admin).
+// Opcionalmente cambia el responsable: id_usuario_asignado = id para asignar,
+// null para quitar la asignación; si no se envía, el responsable no cambia.
 async function actualizarEstado(req, res) {
   const { id } = req.params;
-  const { nombre_estado, comentario, id_usuario_asignado } = req.body;
+  const { nombre_estado, comentario } = req.body;
+  const cambiaResponsable = Object.prototype.hasOwnProperty.call(req.body, 'id_usuario_asignado');
+  const idAsignado = cambiaResponsable && req.body.id_usuario_asignado !== '' && req.body.id_usuario_asignado != null
+    ? Number(req.body.id_usuario_asignado)
+    : null;
   if (!nombre_estado) {
     return res.status(400).json({ error: 'El nuevo estado es obligatorio.' });
+  }
+  if (cambiaResponsable && idAsignado !== null && !Number.isInteger(idAsignado)) {
+    return res.status(400).json({ error: 'El responsable indicado no es válido.' });
   }
 
   const client = await pool.connect();
@@ -240,22 +306,75 @@ async function actualizarEstado(req, res) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Estado no válido.' });
     }
-    const idEstado = estadoRes.rows[0].id_estado;
+    let idEstado = estadoRes.rows[0].id_estado;
+    let estadoFinal = nombre_estado;
 
-    // Actualiza el reporte (estado y, opcionalmente, el responsable asignado).
+    const actualRes = await client.query(
+      `SELECT r.id_municipalidad, r.id_usuario_asignado, ua.nombre_completo AS asignado_a,
+              e.nombre_estado AS estado_actual
+       FROM reporte r
+       JOIN estado_reporte e ON r.id_estado_actual = e.id_estado
+       LEFT JOIN usuario ua ON r.id_usuario_asignado = ua.id_usuario
+       WHERE r.id_reporte = $1`,
+      [id]
+    );
+    if (actualRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Reporte no encontrado.' });
+    }
+    const actual = actualRes.rows[0];
+    if (!puedeVerReporte(req.usuario, actual)) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: SIN_ACCESO });
+    }
+
+    // Valida el nuevo responsable: debe ser un empleado activo de la misma municipalidad.
+    let notaAsignacion = null;
+    if (cambiaResponsable && idAsignado !== actual.id_usuario_asignado) {
+      if (idAsignado !== null) {
+        const empleadoRes = await client.query(
+          `${SQL_ASIGNABLES} AND u.id_usuario = $2`,
+          [actual.id_municipalidad, idAsignado]
+        );
+        if (empleadoRes.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({
+            error: 'Solo se puede asignar a personal activo de la misma municipalidad del reporte.',
+          });
+        }
+        notaAsignacion = `Asignado a ${empleadoRes.rows[0].nombre_completo}`;
+
+        // Diagrama de estados: Recibido -> Asignado cuando el personal asigna un responsable.
+        // Solo aplica si el reporte está 'recibido' y no se pidió otro estado en la misma
+        // petición (si nombre_estado difiere del estado actual, se respeta ese estado).
+        if (actual.estado_actual === 'recibido' && nombre_estado === 'recibido') {
+          const asignadoRes = await client.query(
+            "SELECT id_estado FROM estado_reporte WHERE nombre_estado = 'asignado'"
+          );
+          idEstado = asignadoRes.rows[0].id_estado;
+          estadoFinal = 'asignado';
+        }
+      } else {
+        notaAsignacion = `Se quitó la asignación a ${actual.asignado_a}`;
+      }
+    }
+
+    // Actualiza el reporte (estado y, si corresponde, el responsable asignado).
     await client.query(
       `UPDATE reporte
        SET id_estado_actual = $1,
-           id_usuario_asignado = COALESCE($2, id_usuario_asignado)
-       WHERE id_reporte = $3`,
-      [idEstado, id_usuario_asignado || null, id]
+           id_usuario_asignado = CASE WHEN $2 THEN $3::int ELSE id_usuario_asignado END
+       WHERE id_reporte = $4`,
+      [idEstado, notaAsignacion !== null, idAsignado, id]
     );
 
     // Registra el cambio en el historial, con el usuario responsable autenticado.
+    // Si cambió el responsable, se antepone la nota de asignación al comentario.
+    const comentarioHistorial = [notaAsignacion, comentario].filter(Boolean).join('. ').slice(0, 300);
     await client.query(
       `INSERT INTO historial_estado (id_reporte, id_estado, id_usuario_responsable, comentario)
        VALUES ($1, $2, $3, $4)`,
-      [id, idEstado, req.usuario.id_usuario, comentario || null]
+      [id, idEstado, req.usuario.id_usuario, comentarioHistorial || null]
     );
 
     // Si el reporte tiene un ciudadano registrado, se le genera una notificación.
@@ -269,7 +388,7 @@ async function actualizarEstado(req, res) {
         `INSERT INTO notificacion (id_usuario, id_reporte, mensaje)
          VALUES ($1, $2, $3)`,
         [id_usuario_reporta, id,
-         `Tu reporte ${codigo_seguimiento} cambió al estado: ${nombre_estado}.`]
+         `Tu reporte ${codigo_seguimiento} cambió al estado: ${estadoFinal}.`]
       );
     }
 
@@ -286,4 +405,5 @@ async function actualizarEstado(req, res) {
 
 module.exports = {
   crearReporte, listarReportes, misReportes, consultarPorCodigo, detalleReporte, actualizarEstado,
+  empleadosAsignables,
 };

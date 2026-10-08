@@ -8,6 +8,15 @@ const reportes = ref([]);
 const error = ref('');
 const cargando = ref(true);
 
+// Textos según el rol: el backend ya limita la lista al alcance de cada uno.
+const rol = JSON.parse(localStorage.getItem('usuario') || 'null')?.rol;
+const TEXTOS = {
+  personal_municipal: { titulo: 'Reportes recibidos', sub: 'Gestioná los reportes de tu municipalidad.', vacio: 'No hay reportes registrados en tu municipalidad.' },
+  encargado_cuadrilla: { titulo: 'Mis reportes asignados', sub: 'Reportes asignados a tu cuadrilla para su atención.', vacio: 'No tenés reportes asignados por ahora.' },
+  administrador: { titulo: 'Reportes', sub: 'Todos los reportes de la plataforma (solo lectura).', vacio: 'No hay reportes registrados.' },
+};
+const textos = TEXTOS[rol] || TEXTOS.personal_municipal;
+
 const totalReportes = computed(() => reportes.value.length);
 const totalRecibidos = computed(() => reportes.value.filter((r) => r.nombre_estado === 'recibido').length);
 const totalEnAtencion = computed(() => reportes.value.filter((r) => r.nombre_estado === 'en_atencion').length);
@@ -38,8 +47,8 @@ onMounted(cargar);
 
 <template>
   <div class="container">
-    <h1 class="title">Reportes recibidos</h1>
-    <p class="sub">Gestioná los reportes de tu municipalidad.</p>
+    <h1 class="title">{{ textos.titulo }}</h1>
+    <p class="sub">{{ textos.sub }}</p>
 
     <div v-if="error" class="alert error"><i class="bx bx-error-circle"></i> {{ error }}</div>
 
@@ -98,12 +107,13 @@ onMounted(cargar);
               <td><span class="badge" :class="'b-' + r.nombre_estado">{{ r.nombre_estado }}</span></td>
               <td>
                 <button class="btn ghost btn-sm" @click="gestionar(r.id_reporte)">
-                  <i class="bx bx-cog"></i> Gestionar
+                  <template v-if="rol === 'personal_municipal'"><i class="bx bx-cog"></i> Gestionar</template>
+                  <template v-else><i class="bx bx-show"></i> Ver detalle</template>
                 </button>
               </td>
             </tr>
             <tr v-if="reportes.length === 0">
-              <td colspan="6" class="empty">No hay reportes registrados.</td>
+              <td colspan="6" class="empty">{{ textos.vacio }}</td>
             </tr>
           </tbody>
         </table>

@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { Doughnut, Bar } from 'vue-chartjs';
 import { Chart as ChartJS, ArcElement, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
-import { estadisticaService } from '../services/api';
+import { estadisticaService, catalogoService } from '../services/api';
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip);
 
@@ -22,10 +22,17 @@ const error = ref('');
 const cargando = ref(true);      // primera carga: oculta el contenido
 const actualizando = ref(false); // recarga por filtro: atenúa el contenido sin ocultarlo
 
+// El coordinador (personal_municipal) solo ve su municipalidad: el backend lo limita.
+// El administrador ve todo y puede filtrar por municipalidad.
+const esAdmin = JSON.parse(localStorage.getItem('usuario') || 'null')?.rol === 'administrador';
+const municipalidades = ref([]);
+const idMunicipalidad = ref('');
+
 // Filtro por rango de fechas (los inputs type="date" ya entregan YYYY-MM-DD).
 const fechaInicio = ref('');
 const fechaFin = ref('');
-const filtroAplicado = ref(null); // { fecha_inicio?, fecha_fin? } vigente, o null
+const filtroAplicado = ref(null); // { fecha_inicio?, fecha_fin?, id_municipalidad? } vigente, o null
+const hayFiltroEnFormulario = computed(() => !!(fechaInicio.value || fechaFin.value || idMunicipalidad.value));
 
 function fechaLegible(f) {
   const [a, m, d] = f.split('-');
@@ -35,9 +42,15 @@ function fechaLegible(f) {
 const descripcionFiltro = computed(() => {
   const f = filtroAplicado.value;
   if (!f) return '';
-  if (f.fecha_inicio && f.fecha_fin) return `del ${fechaLegible(f.fecha_inicio)} al ${fechaLegible(f.fecha_fin)}`;
-  if (f.fecha_inicio) return `desde el ${fechaLegible(f.fecha_inicio)}`;
-  return `hasta el ${fechaLegible(f.fecha_fin)}`;
+  const partes = [];
+  if (f.id_municipalidad) {
+    const m = municipalidades.value.find((x) => x.id_municipalidad === f.id_municipalidad);
+    partes.push(`de ${m ? m.nombre : 'la municipalidad seleccionada'}`);
+  }
+  if (f.fecha_inicio && f.fecha_fin) partes.push(`del ${fechaLegible(f.fecha_inicio)} al ${fechaLegible(f.fecha_fin)}`);
+  else if (f.fecha_inicio) partes.push(`desde el ${fechaLegible(f.fecha_inicio)}`);
+  else if (f.fecha_fin) partes.push(`hasta el ${fechaLegible(f.fecha_fin)}`);
+  return partes.join(' ');
 });
 
 // Tarjetas: total + una por cada estado, en el orden que define el catálogo.
@@ -196,30 +209,51 @@ function aplicarFiltro() {
   const filtros = {};
   if (fechaInicio.value) filtros.fecha_inicio = fechaInicio.value;
   if (fechaFin.value) filtros.fecha_fin = fechaFin.value;
+  if (esAdmin && idMunicipalidad.value) filtros.id_municipalidad = idMunicipalidad.value;
   cargar(filtros);
 }
 
 function limpiarFiltro() {
   fechaInicio.value = '';
   fechaFin.value = '';
+  idMunicipalidad.value = '';
   cargar();
 }
 
-onMounted(() => cargar());
+onMounted(async () => {
+  cargar();
+  if (esAdmin) {
+    try {
+      const { data } = await catalogoService.municipalidades();
+      municipalidades.value = data;
+    } catch (err) {
+      // Sin la lista, el administrador sigue viendo las estadísticas globales.
+    }
+  }
+});
 </script>
 
 <template>
   <div class="container">
     <h1 class="title">Estadísticas</h1>
-    <p class="sub">Resumen general de los reportes registrados en la plataforma.</p>
+    <p class="sub">{{ esAdmin ? 'Estadísticas globales de la plataforma. Podés filtrar por municipalidad.' : 'Estadísticas de los reportes de tu municipalidad.' }}</p>
 
     <!-- Filtro por rango de fechas -->
     <form class="card filter-card" @submit.prevent="aplicarFiltro">
       <div class="filter-head">
         <i class="bx bx-calendar"></i>
-        <span>Filtrar por fecha de reporte</span>
+        <span>{{ esAdmin ? 'Filtrar por municipalidad y fecha de reporte' : 'Filtrar por fecha de reporte' }}</span>
       </div>
       <div class="filter-row">
+        <div v-if="esAdmin" class="field">
+          <label for="municipalidad"><i class="bx bx-building"></i> Municipalidad</label>
+          <select id="municipalidad" v-model="idMunicipalidad">
+            <option value="">Todas las municipalidades</option>
+            <option v-for="m in municipalidades" :key="m.id_municipalidad" :value="m.id_municipalidad">
+              {{ m.nombre }}
+            </option>
+          </select>
+        </div>
         <div class="field">
           <label for="fecha-inicio">Fecha inicio</label>
           <input id="fecha-inicio" type="date" v-model="fechaInicio" :max="fechaFin || undefined" />
@@ -229,10 +263,10 @@ onMounted(() => cargar());
           <input id="fecha-fin" type="date" v-model="fechaFin" :min="fechaInicio || undefined" />
         </div>
         <div class="filter-actions">
-          <button type="submit" class="btn" :disabled="(!fechaInicio && !fechaFin) || actualizando">
+          <button type="submit" class="btn" :disabled="!hayFiltroEnFormulario || actualizando">
             <i class="bx bx-filter-alt"></i> Aplicar
           </button>
-          <button type="button" class="btn ghost" :disabled="(!filtroAplicado && !fechaInicio && !fechaFin) || actualizando"
+          <button type="button" class="btn ghost" :disabled="(!filtroAplicado && !hayFiltroEnFormulario) || actualizando"
                   @click="limpiarFiltro">
             <i class="bx bx-x"></i> Limpiar
           </button>
@@ -241,7 +275,7 @@ onMounted(() => cargar());
       <p class="filter-status">
         <i class="bx" :class="filtroAplicado ? 'bx-calendar-check' : 'bx-infinite'"></i>
         <template v-if="filtroAplicado">Mostrando reportes <strong>{{ descripcionFiltro }}</strong></template>
-        <template v-else>Mostrando todos los reportes, sin rango de fechas</template>
+        <template v-else>{{ esAdmin ? 'Mostrando todos los reportes de todas las municipalidades' : 'Mostrando todos los reportes, sin rango de fechas' }}</template>
       </p>
     </form>
 
@@ -321,6 +355,7 @@ onMounted(() => cargar());
 }
 .field { flex: 1 1 180px; }
 .field label { margin-top: 12px; }
+.field label i { color: var(--forest); font-size: 15px; vertical-align: -2px; }
 .filter-actions { display: flex; gap: 10px; }
 .filter-status {
   display: flex;

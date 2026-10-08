@@ -112,8 +112,18 @@ async function alternarEstado(usuario) {
 }
 
 // Muestra el nombre del rol en un formato legible.
+const ETIQUETAS_ROL = {
+  administrador: 'Administrador',
+  personal_municipal: 'Personal municipal (coordinador)',
+  encargado_cuadrilla: 'Encargado de cuadrilla',
+};
 function etiquetaRol(nombreRol) {
-  return nombreRol === 'administrador' ? 'Administrador' : 'Personal municipal';
+  return ETIQUETAS_ROL[nombreRol] || nombreRol;
+}
+
+// Color del badge de rol en la tabla.
+function claseRol(nombreRol) {
+  return nombreRol === 'encargado_cuadrilla' ? 'b-en_atencion' : 'b-asignado';
 }
 
 onMounted(cargar);
@@ -122,7 +132,7 @@ onMounted(cargar);
 <template>
   <div class="container">
     <h1 class="title"><i class="bx bx-user"></i> Gestión de usuarios</h1>
-    <p class="sub">Administrá las cuentas del personal municipal de la plataforma.</p>
+    <p class="sub">Administrá las cuentas del personal municipal y de los encargados de cuadrilla. Toda cuenta pertenece a una municipalidad.</p>
 
     <div v-if="error" class="alert error"><i class="bx bx-error-circle"></i> {{ error }}</div>
     <div v-if="exito" class="alert ok"><i class="bx bx-check-circle"></i> {{ exito }}</div>
@@ -220,7 +230,7 @@ onMounted(cargar);
               <td><strong>{{ u.nombre_completo }}</strong></td>
               <td>{{ u.correo }}</td>
               <td>{{ u.nombre_municipalidad || '—' }}</td>
-              <td><span class="badge b-asignado">{{ etiquetaRol(u.nombre_rol) }}</span></td>
+              <td><span class="badge" :class="claseRol(u.nombre_rol)">{{ etiquetaRol(u.nombre_rol) }}</span></td>
               <td>
                 <span class="badge" :class="u.estado ? 'b-resuelto' : 'b-descartado'">
                   {{ u.estado ? 'Activo' : 'Inactivo' }}

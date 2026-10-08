@@ -22,7 +22,7 @@ async function iniciarSesion() {
     localStorage.setItem('usuario', JSON.stringify(data.usuario));
     window.dispatchEvent(new Event('storage-updated'));
     // Redirige según el rol.
-    if (['personal_municipal', 'administrador'].includes(data.usuario.rol)) {
+    if (['personal_municipal', 'encargado_cuadrilla', 'administrador'].includes(data.usuario.rol)) {
       router.push('/municipal/panel');
     } else {
       router.push('/portal');

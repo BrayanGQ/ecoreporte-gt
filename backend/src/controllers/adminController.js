@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const { query } = require('../config/db');
 
 // Roles que el administrador puede asignar a una cuenta de personal.
-const ROLES_PERSONAL = ['personal_municipal', 'administrador'];
+const ROLES_PERSONAL = ['personal_municipal', 'encargado_cuadrilla', 'administrador'];
 
 // =========================================================================
 // GESTIÓN DE USUARIOS
@@ -21,7 +21,7 @@ async function listarUsuarios(req, res) {
        FROM usuario u
        JOIN rol r ON u.id_rol = r.id_rol
        LEFT JOIN municipalidad m ON u.id_municipalidad = m.id_municipalidad
-       WHERE r.nombre_rol IN ('personal_municipal', 'administrador')
+       WHERE r.nombre_rol IN ('personal_municipal', 'encargado_cuadrilla', 'administrador')
        ORDER BY u.nombre_completo`
     );
     res.json(r.rows);
@@ -37,7 +37,7 @@ async function listarRoles(req, res) {
     const r = await query(
       `SELECT id_rol, nombre_rol, descripcion
        FROM rol
-       WHERE nombre_rol IN ('personal_municipal', 'administrador')
+       WHERE nombre_rol IN ('personal_municipal', 'encargado_cuadrilla', 'administrador')
        ORDER BY id_rol`
     );
     res.json(r.rows);
