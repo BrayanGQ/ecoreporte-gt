@@ -17,6 +17,10 @@ const soloAdmin = [verificarToken, permitirRoles('administrador')];
 // Middleware para rutas del personal: token válido y rol municipal o administrador.
 const personalMunicipal = [verificarToken, permitirRoles('personal_municipal', 'administrador')];
 
+// Acciones del flujo de estados: coordinador (personal_municipal) o encargado de cuadrilla.
+const soloCoordinador = [verificarToken, permitirRoles('personal_municipal')];
+const soloCuadrilla = [verificarToken, permitirRoles('encargado_cuadrilla')];
+
 // ---------- Autenticación (públicas) ----------
 router.post('/auth/registro', auth.registro);
 router.post('/auth/login', auth.login);
@@ -40,8 +44,12 @@ router.get('/reportes/mis-reportes', verificarToken, reportes.misReportes);
 
 // Gestión municipal: requieren autenticación y rol.
 router.get('/reportes/:id/detalle', verificarToken, reportes.detalleReporte);
-router.put('/reportes/:id/estado', verificarToken,
-  permitirRoles('personal_municipal', 'administrador'), reportes.actualizarEstado);
+// Flujo de estados: una acción por transición, cada una con su rol.
+// El administrador no interviene en la atención (recibe 403).
+router.post('/reportes/:id/asignar', soloCoordinador, reportes.asignar);
+router.post('/reportes/:id/descartar', soloCoordinador, reportes.descartar);
+router.post('/reportes/:id/iniciar', soloCuadrilla, reportes.iniciar);
+router.post('/reportes/:id/resolver', soloCuadrilla, reportes.resolver);
 router.get('/reportes/:id/asignables', verificarToken,
   permitirRoles('personal_municipal', 'administrador'), reportes.empleadosAsignables);
 

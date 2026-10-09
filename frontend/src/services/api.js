@@ -40,7 +40,11 @@ export const reporteService = {
   consultar: (codigo) => api.get(`/reportes/consulta/${codigo}`),
   misReportes: () => api.get('/reportes/mis-reportes'),
   detalle: (id) => api.get(`/reportes/${id}/detalle`),
-  actualizarEstado: (id, datos) => api.put(`/reportes/${id}/estado`, datos),
+  // Flujo de estados: una acción por transición (el backend valida rol y estado).
+  asignar: (id, id_usuario_asignado) => api.post(`/reportes/${id}/asignar`, { id_usuario_asignado }),
+  descartar: (id, motivo) => api.post(`/reportes/${id}/descartar`, { motivo }),
+  iniciar: (id, comentario) => api.post(`/reportes/${id}/iniciar`, { comentario }),
+  resolver: (id, comentario) => api.post(`/reportes/${id}/resolver`, { comentario }),
   asignables: (id) => api.get(`/reportes/${id}/asignables`),
 };
 

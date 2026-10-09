@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { reporteService } from '../services/api';
 
@@ -8,29 +8,42 @@ const router = useRouter();
 const reporte = ref(null);
 const error = ref('');
 const ok = ref('');
-const nuevoEstado = ref('');
-const comentario = ref('');
 const guardando = ref(false);
 const imagenAmpliada = ref(null);
 
-// Responsable asignado: empleados de la misma municipalidad del reporte.
-const empleados = ref(null); // null mientras carga
-const errorEmpleados = ref('');
-const nuevoResponsable = ref(null); // id_usuario, o null = sin asignar
+// Encargados de cuadrilla de la misma municipalidad del reporte.
+const cuadrillas = ref(null); // null mientras carga
+const errorCuadrillas = ref('');
+const cuadrillaElegida = ref('');
+
+// Descarte: el motivo es obligatorio.
+const descartando = ref(false);
+const motivo = ref('');
 
 // Solo el coordinador (personal_municipal) gestiona el reporte. El administrador lo ve
 // en modo solo lectura; el encargado de cuadrilla, por ahora también (su panel es la fase 3).
 const rol = JSON.parse(localStorage.getItem('usuario') || 'null')?.rol;
 const puedeGestionar = rol === 'personal_municipal';
 
-const estadosPosibles = ['recibido', 'asignado', 'en_atencion', 'resuelto', 'descartado'];
+// Aviso de solo lectura para los estados en los que el coordinador ya no actúa.
+const AVISOS_ESTADO = {
+  en_atencion: { icono: 'bx-loader-circle', texto: 'La cuadrilla asignada está atendiendo este reporte.' },
+  resuelto: { icono: 'bx-check-circle', texto: 'Este reporte ya fue resuelto por la cuadrilla.' },
+  descartado: { icono: 'bx-x-circle', texto: 'Este reporte fue descartado.' },
+};
+
+// Cuadrillas disponibles para reasignar: todas menos la actual.
+const cuadrillasParaReasignar = computed(() =>
+  (cuadrillas.value || []).filter((c) => c.id_usuario !== reporte.value?.id_usuario_asignado)
+);
 
 async function cargar() {
   try {
     const { data } = await reporteService.detalle(route.params.id);
     reporte.value = data;
-    nuevoEstado.value = data.nombre_estado;
-    nuevoResponsable.value = data.id_usuario_asignado;
+    cuadrillaElegida.value = '';
+    descartando.value = false;
+    motivo.value = '';
   } catch (err) {
     error.value = err.response?.status === 403
       ? err.response.data?.error || 'No tenés acceso a este reporte.'
@@ -38,37 +51,45 @@ async function cargar() {
   }
 }
 
-async function cargarEmpleados() {
+async function cargarCuadrillas() {
   try {
     const { data } = await reporteService.asignables(route.params.id);
-    empleados.value = data;
+    cuadrillas.value = data;
   } catch (err) {
-    errorEmpleados.value = 'No se pudo cargar la lista de empleados.';
+    errorCuadrillas.value = 'No se pudo cargar la lista de encargados de cuadrilla.';
   }
 }
 
-async function guardarEstado() {
+// Ejecuta una acción del flujo y refresca el detalle (estado, responsable e historial).
+async function ejecutar(accion, mensajeOk) {
   error.value = '';
   ok.value = '';
   guardando.value = true;
   try {
-    const datos = {
-      nombre_estado: nuevoEstado.value,
-      comentario: comentario.value,
-    };
-    // El responsable solo se envía si cambió, para no tocarlo al actualizar solo el estado.
-    if (nuevoResponsable.value !== reporte.value.id_usuario_asignado) {
-      datos.id_usuario_asignado = nuevoResponsable.value;
-    }
-    await reporteService.actualizarEstado(route.params.id, datos);
-    ok.value = 'Cambios guardados correctamente.';
-    comentario.value = '';
+    await accion();
+    ok.value = mensajeOk;
     await cargar();
   } catch (err) {
-    error.value = err.response?.data?.error || 'Error al actualizar el estado.';
+    error.value = err.response?.data?.error || 'No se pudo actualizar el reporte.';
   } finally {
     guardando.value = false;
   }
+}
+
+function asignar() {
+  const reasignando = reporte.value.nombre_estado === 'asignado';
+  ejecutar(
+    () => reporteService.asignar(route.params.id, cuadrillaElegida.value),
+    reasignando ? 'Reporte reasignado correctamente.' : 'Reporte asignado correctamente.'
+  );
+}
+
+function descartar() {
+  if (!motivo.value.trim()) {
+    error.value = 'Escribí el motivo del descarte.';
+    return;
+  }
+  ejecutar(() => reporteService.descartar(route.params.id, motivo.value.trim()), 'Reporte descartado.');
 }
 
 function fecha(f) {
@@ -77,7 +98,7 @@ function fecha(f) {
 
 onMounted(() => {
   cargar();
-  if (puedeGestionar) cargarEmpleados();
+  if (puedeGestionar) cargarCuadrillas();
 });
 </script>
 
@@ -114,27 +135,80 @@ onMounted(() => {
           </p>
         </div>
 
-        <!-- Gestión de estado (solo coordinador) -->
+        <!-- Gestión del reporte (solo coordinador): solo las acciones válidas según el estado -->
         <div v-if="puedeGestionar" class="card">
           <h3><i class="bx bx-cog"></i> Gestionar reporte</h3>
-          <label for="responsable"><i class="bx bx-user-check"></i> Responsable asignado</label>
-          <select id="responsable" v-model="nuevoResponsable" :disabled="!!errorEmpleados">
-            <option :value="null">Sin asignar</option>
-            <option v-for="emp in empleados" :key="emp.id_usuario" :value="emp.id_usuario">
-              {{ emp.nombre_completo }}
-            </option>
-          </select>
-          <small v-if="errorEmpleados" class="nota error-nota">{{ errorEmpleados }}</small>
-          <small v-else-if="empleados && !empleados.length" class="nota">No hay personal activo en la municipalidad de este reporte.</small>
-          <label>Nuevo estado</label>
-          <select v-model="nuevoEstado">
-            <option v-for="e in estadosPosibles" :key="e" :value="e">{{ e }}</option>
-          </select>
-          <label>Comentario (opcional)</label>
-          <textarea v-model="comentario" placeholder="Detalle del cambio..."></textarea>
-          <button class="btn block" style="margin-top:14px" :disabled="guardando" @click="guardarEstado">
-            <i class="bx bx-save"></i> {{ guardando ? 'Guardando...' : 'Guardar cambios' }}
-          </button>
+
+          <!-- recibido / asignado: asignar o reasignar una cuadrilla -->
+          <template v-if="['recibido', 'asignado'].includes(reporte.nombre_estado) && !descartando">
+            <div v-if="reporte.nombre_estado === 'asignado'" class="actual">
+              <span class="actual-label">Cuadrilla actual</span>
+              <span class="responsable"><i class="bx bx-user-check"></i> {{ reporte.asignado_a || 'Sin asignar' }}</span>
+            </div>
+
+            <label for="cuadrilla">
+              <i class="bx bx-user-check"></i>
+              {{ reporte.nombre_estado === 'asignado' ? 'Reasignar a otra cuadrilla' : 'Encargado de cuadrilla' }}
+            </label>
+            <select id="cuadrilla" v-model="cuadrillaElegida" :disabled="!!errorCuadrillas || guardando">
+              <option value="">Seleccioná un encargado</option>
+              <option
+                v-for="c in (reporte.nombre_estado === 'asignado' ? cuadrillasParaReasignar : cuadrillas)"
+                :key="c.id_usuario"
+                :value="c.id_usuario"
+              >
+                {{ c.nombre_completo }}
+              </option>
+            </select>
+            <small v-if="errorCuadrillas" class="nota error-nota">{{ errorCuadrillas }}</small>
+            <small v-else-if="cuadrillas && !cuadrillas.length" class="nota">
+              No hay encargados de cuadrilla activos en la municipalidad de este reporte.
+            </small>
+            <small v-else-if="reporte.nombre_estado === 'asignado' && cuadrillas && !cuadrillasParaReasignar.length" class="nota">
+              No hay otros encargados de cuadrilla disponibles para reasignar.
+            </small>
+
+            <button class="btn block accion" :disabled="!cuadrillaElegida || guardando" @click="asignar">
+              <i :class="reporte.nombre_estado === 'asignado' ? 'bx bx-transfer' : 'bx bx-user-check'"></i>
+              {{ guardando ? 'Guardando...' : (reporte.nombre_estado === 'asignado' ? 'Reasignar' : 'Asignar') }}
+            </button>
+
+            <button
+              v-if="reporte.nombre_estado === 'recibido'"
+              class="btn ghost block descartar"
+              :disabled="guardando"
+              @click="descartando = true"
+            >
+              <i class="bx bx-block"></i> Descartar reporte
+            </button>
+          </template>
+
+          <!-- recibido: descarte con motivo obligatorio -->
+          <template v-else-if="reporte.nombre_estado === 'recibido' && descartando">
+            <p class="aviso-descarte">
+              <i class="bx bx-error"></i> El reporte quedará descartado y no podrá atenderse. Indicá el motivo.
+            </p>
+            <label for="motivo">Motivo del descarte</label>
+            <textarea id="motivo" v-model="motivo" maxlength="300"
+                      placeholder="Ej.: reporte duplicado, ubicación fuera de la municipalidad..."></textarea>
+            <div class="acciones-descarte">
+              <button class="btn btn-peligro" :disabled="!motivo.trim() || guardando" @click="descartar">
+                <i class="bx bx-block"></i> {{ guardando ? 'Guardando...' : 'Confirmar descarte' }}
+              </button>
+              <button class="btn ghost" :disabled="guardando" @click="descartando = false; motivo = ''">
+                <i class="bx bx-x"></i> Cancelar
+              </button>
+            </div>
+          </template>
+
+          <!-- en_atencion, resuelto o descartado: solo lectura -->
+          <div v-else class="aviso-estado" :class="'aviso-' + reporte.nombre_estado">
+            <i class="bx" :class="AVISOS_ESTADO[reporte.nombre_estado]?.icono || 'bx-info-circle'"></i>
+            <div>
+              <strong>Sin acciones disponibles</strong>
+              <p>{{ AVISOS_ESTADO[reporte.nombre_estado]?.texto || 'Este reporte no admite cambios en su estado actual.' }}</p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -199,6 +273,34 @@ onMounted(() => {
 .responsable i { font-size: 15px; }
 .sin-asignar { color: var(--text-secondary); font-style: italic; }
 label i { color: var(--forest); font-size: 15px; vertical-align: -2px; }
+.actual {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--bg); border-radius: var(--radius-input); padding: 10px 12px; margin-bottom: 4px;
+}
+.actual-label { font-size: 13px; color: var(--text-secondary); }
+.accion { margin-top: 16px; }
+.descartar { margin-top: 10px; color: #B42318; }
+.descartar:hover { border-color: #FECDCA; background: #FEF3F2; }
+.aviso-descarte {
+  display: flex; align-items: flex-start; gap: 8px; font-size: 13px !important;
+  background: #FEF3F2; color: #B42318; border: 1px solid #FECDCA;
+  border-radius: var(--radius-input); padding: 10px 12px; margin: 0 0 4px !important;
+}
+.aviso-descarte i { font-size: 17px; margin-top: 1px; }
+.acciones-descarte { display: flex; gap: 10px; margin-top: 14px; }
+.acciones-descarte .btn { flex: 1; }
+.btn-peligro { background: #B42318; }
+.btn-peligro:hover { background: #912018; }
+.aviso-estado {
+  display: flex; align-items: flex-start; gap: 12px;
+  border-radius: var(--radius-input); padding: 14px; border: 1px solid var(--border); background: var(--bg);
+}
+.aviso-estado i { font-size: 22px; flex-shrink: 0; }
+.aviso-estado strong { font-size: 14px; color: var(--slate); }
+.aviso-estado p { margin: 2px 0 0 !important; font-size: 13px !important; color: var(--text-secondary); }
+.aviso-en_atencion i { color: #93650A; }
+.aviso-resuelto i { color: var(--forest); }
+.aviso-descartado i { color: #667085; }
 .nota { display: block; margin-top: 6px; font-size: 12px; color: var(--text-secondary); }
 .error-nota { color: #B42318; }
 .timeline { list-style: none; }
