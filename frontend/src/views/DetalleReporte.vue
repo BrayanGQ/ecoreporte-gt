@@ -2,6 +2,9 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { reporteService } from '../services/api';
+import { prepararFoto } from '../utils/imagenes';
+import { urlComoLlegar } from '../utils/mapas';
+import GaleriaEvidencia from '../components/GaleriaEvidencia.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -9,8 +12,15 @@ const reporte = ref(null);
 const error = ref('');
 const ok = ref('');
 const guardando = ref(false);
-const imagenAmpliada = ref(null);
 
+// Quién gestiona: el coordinador (personal_municipal) asigna, reasigna o descarta;
+// el encargado de cuadrilla inicia y resuelve. El administrador solo lee.
+const rol = JSON.parse(localStorage.getItem('usuario') || 'null')?.rol;
+const esCoordinador = rol === 'personal_municipal';
+const esCuadrilla = rol === 'encargado_cuadrilla';
+const tieneAcciones = esCoordinador || esCuadrilla;
+
+// ---------- Coordinador ----------
 // Encargados de cuadrilla de la misma municipalidad del reporte.
 const cuadrillas = ref(null); // null mientras carga
 const errorCuadrillas = ref('');
@@ -19,11 +29,6 @@ const cuadrillaElegida = ref('');
 // Descarte: el motivo es obligatorio.
 const descartando = ref(false);
 const motivo = ref('');
-
-// Solo el coordinador (personal_municipal) gestiona el reporte. El administrador lo ve
-// en modo solo lectura; el encargado de cuadrilla, por ahora también (su panel es la fase 3).
-const rol = JSON.parse(localStorage.getItem('usuario') || 'null')?.rol;
-const puedeGestionar = rol === 'personal_municipal';
 
 // Aviso de solo lectura para los estados en los que el coordinador ya no actúa.
 const AVISOS_ESTADO = {
@@ -37,6 +42,24 @@ const cuadrillasParaReasignar = computed(() =>
   (cuadrillas.value || []).filter((c) => c.id_usuario !== reporte.value?.id_usuario_asignado)
 );
 
+// ---------- Encargado de cuadrilla ----------
+const MAX_FOTOS = 5;
+const MAX_CARACTERES_FOTO = 5 * 1024 * 1024; // mismo límite que el backend
+const comentarioInicio = ref('');
+const comentarioResolucion = ref('');
+const fotos = ref([]); // [{ dataUrl }]
+const procesandoFotos = ref(false);
+const inputCamara = ref(null);
+const inputGaleria = ref(null);
+
+// ---------- Evidencia: antes (ciudadano) y después (limpieza) ----------
+const evidenciaCiudadana = computed(() =>
+  (reporte.value?.evidencias || []).filter((ev) => ev.tipo_evidencia !== 'municipal')
+);
+const evidenciaLimpieza = computed(() =>
+  (reporte.value?.evidencias || []).filter((ev) => ev.tipo_evidencia === 'municipal')
+);
+
 async function cargar() {
   try {
     const { data } = await reporteService.detalle(route.params.id);
@@ -44,6 +67,9 @@ async function cargar() {
     cuadrillaElegida.value = '';
     descartando.value = false;
     motivo.value = '';
+    comentarioInicio.value = '';
+    comentarioResolucion.value = '';
+    fotos.value = [];
   } catch (err) {
     error.value = err.response?.status === 403
       ? err.response.data?.error || 'No tenés acceso a este reporte.'
@@ -69,6 +95,7 @@ async function ejecutar(accion, mensajeOk) {
     await accion();
     ok.value = mensajeOk;
     await cargar();
+    window.scrollTo({ top: 0, behavior: 'smooth' }); // en el celular, el aviso queda arriba
   } catch (err) {
     error.value = err.response?.data?.error || 'No se pudo actualizar el reporte.';
   } finally {
@@ -92,19 +119,76 @@ function descartar() {
   ejecutar(() => reporteService.descartar(route.params.id, motivo.value.trim()), 'Reporte descartado.');
 }
 
+function iniciar() {
+  ejecutar(
+    () => reporteService.iniciar(route.params.id, comentarioInicio.value.trim()),
+    'Atención iniciada. Cuando termines la limpieza, marcá el reporte como resuelto.'
+  );
+}
+
+async function agregarFotos(evento) {
+  error.value = '';
+  const archivos = Array.from(evento.target.files || []);
+  evento.target.value = ''; // permite volver a elegir la misma foto
+  procesandoFotos.value = true;
+  try {
+    for (const archivo of archivos) {
+      if (fotos.value.length >= MAX_FOTOS) {
+        error.value = `Se permiten como máximo ${MAX_FOTOS} fotos.`;
+        break;
+      }
+      if (!archivo.type.startsWith('image/')) {
+        error.value = 'Solo se permiten archivos de imagen.';
+        continue;
+      }
+      const dataUrl = await prepararFoto(archivo);
+      if (dataUrl.length > MAX_CARACTERES_FOTO) {
+        error.value = 'Una de las fotos es demasiado grande. Probá con otra.';
+        continue;
+      }
+      fotos.value.push({ dataUrl });
+    }
+  } catch (e) {
+    error.value = 'No se pudo procesar una de las fotos.';
+  } finally {
+    procesandoFotos.value = false;
+  }
+}
+
+function quitarFoto(indice) {
+  fotos.value.splice(indice, 1);
+}
+
+function resolver() {
+  if (!fotos.value.length) {
+    error.value = 'Agregá al menos una foto de la limpieza para resolver el reporte.';
+    return;
+  }
+  ejecutar(
+    () => reporteService.resolver(
+      route.params.id,
+      comentarioResolucion.value.trim(),
+      fotos.value.map((f) => f.dataUrl)
+    ),
+    'Reporte marcado como resuelto. ¡Gracias por tu trabajo!'
+  );
+}
+
 function fecha(f) {
   return new Date(f).toLocaleString('es-GT');
 }
 
 onMounted(() => {
   cargar();
-  if (puedeGestionar) cargarCuadrillas();
+  if (esCoordinador) cargarCuadrillas();
 });
 </script>
 
 <template>
   <div class="container">
-    <a class="volver" @click="router.push('/municipal/panel')"><i class="bx bx-arrow-back"></i> Volver a reportes</a>
+    <a class="volver" @click="router.push('/municipal/panel')">
+      <i class="bx bx-arrow-back"></i> {{ esCuadrilla ? 'Volver a mis reportes' : 'Volver a reportes' }}
+    </a>
 
     <div v-if="error" class="alert error"><i class="bx bx-error-circle"></i> {{ error }}</div>
     <div v-if="ok" class="alert ok"><i class="bx bx-check-circle"></i> {{ ok }}</div>
@@ -116,13 +200,16 @@ onMounted(() => {
         <i class="bx bx-lock-alt"></i> Modo solo lectura: la atención de reportes la gestiona el personal municipal.
       </div>
 
-      <div class="grid" :class="{ unica: !puedeGestionar }">
+      <div class="grid" :class="{ unica: !tieneAcciones, 'grid-cuadrilla': esCuadrilla }">
         <!-- Datos -->
         <div class="card">
           <h3><i class="bx bx-info-circle"></i> Datos del reporte</h3>
           <p><strong>Tipo:</strong> {{ reporte.nombre_tipo }}</p>
           <p><strong>Descripción:</strong> {{ reporte.descripcion || '—' }}</p>
           <p><strong>Ubicación:</strong> {{ Number(reporte.latitud).toFixed(5) }}, {{ Number(reporte.longitud).toFixed(5) }}</p>
+          <a class="btn ghost como-llegar" :href="urlComoLlegar(reporte.latitud, reporte.longitud)" target="_blank" rel="noopener">
+            <i class="bx bx-map"></i> Cómo llegar
+          </a>
           <p><strong>Municipalidad:</strong> {{ reporte.municipalidad }}</p>
           <p><strong>Fecha:</strong> {{ fecha(reporte.fecha_reporte) }}</p>
           <p><strong>Reportado por:</strong> {{ reporte.reportado_por || 'Anónimo' }}</p>
@@ -135,8 +222,8 @@ onMounted(() => {
           </p>
         </div>
 
-        <!-- Gestión del reporte (solo coordinador): solo las acciones válidas según el estado -->
-        <div v-if="puedeGestionar" class="card">
+        <!-- Gestión del reporte (coordinador): solo las acciones válidas según el estado -->
+        <div v-if="esCoordinador" class="card">
           <h3><i class="bx bx-cog"></i> Gestionar reporte</h3>
 
           <!-- recibido / asignado: asignar o reasignar una cuadrilla -->
@@ -210,23 +297,85 @@ onMounted(() => {
             </div>
           </div>
         </div>
+
+        <!-- Atención del reporte (encargado de cuadrilla) -->
+        <div v-if="esCuadrilla" class="card card-acciones">
+          <h3><i class="bx bx-wrench"></i> Atención del reporte</h3>
+
+          <!-- asignado: iniciar la atención -->
+          <template v-if="reporte.nombre_estado === 'asignado'">
+            <p class="ayuda">Cuando la cuadrilla llegue al lugar y empiece la limpieza, iniciá la atención.</p>
+            <label for="comentario-inicio">Comentario (opcional)</label>
+            <textarea id="comentario-inicio" v-model="comentarioInicio" maxlength="300"
+                      placeholder="Ej.: cuadrilla en el lugar, se requiere camión..."></textarea>
+            <button class="btn block btn-grande accion" :disabled="guardando" @click="iniciar">
+              <i class="bx bx-play-circle"></i> {{ guardando ? 'Guardando...' : 'Iniciar atención' }}
+            </button>
+          </template>
+
+          <!-- en_atencion: resolver con fotos obligatorias -->
+          <template v-else-if="reporte.nombre_estado === 'en_atencion'">
+            <p class="ayuda">Tomá al menos una foto del lugar ya limpio para marcar el reporte como resuelto.</p>
+
+            <label><i class="bx bx-camera"></i> Fotos de la limpieza <span class="contador">{{ fotos.length }} de {{ MAX_FOTOS }}</span></label>
+            <input ref="inputCamara" type="file" accept="image/*" capture="environment" class="input-oculto" @change="agregarFotos" />
+            <input ref="inputGaleria" type="file" accept="image/*" multiple class="input-oculto" @change="agregarFotos" />
+            <div class="botones-foto">
+              <button type="button" class="btn btn-grande" :disabled="fotos.length >= MAX_FOTOS || procesandoFotos || guardando"
+                      @click="inputCamara.click()">
+                <i class="bx bx-camera"></i> Tomar foto
+              </button>
+              <button type="button" class="btn ghost btn-grande" :disabled="fotos.length >= MAX_FOTOS || procesandoFotos || guardando"
+                      @click="inputGaleria.click()">
+                <i class="bx bx-image-add"></i> Elegir de la galería
+              </button>
+            </div>
+            <small v-if="procesandoFotos" class="nota"><i class="bx bx-loader-alt bx-spin"></i> Procesando fotos...</small>
+            <small v-else-if="fotos.length >= MAX_FOTOS" class="nota">Llegaste al máximo de {{ MAX_FOTOS }} fotos.</small>
+
+            <div v-if="fotos.length" class="miniaturas">
+              <div v-for="(f, i) in fotos" :key="i" class="miniatura">
+                <img :src="f.dataUrl" :alt="'Foto de la limpieza ' + (i + 1)" />
+                <button type="button" class="quitar" title="Quitar foto" @click="quitarFoto(i)">
+                  <i class="bx bx-x"></i>
+                </button>
+              </div>
+            </div>
+
+            <label for="comentario-resolucion">Comentario (opcional)</label>
+            <textarea id="comentario-resolucion" v-model="comentarioResolucion" maxlength="300"
+                      placeholder="Ej.: se retiraron 3 m³ de desechos..."></textarea>
+
+            <button class="btn block btn-grande accion" :disabled="!fotos.length || procesandoFotos || guardando" @click="resolver">
+              <i class="bx bx-check-circle"></i> {{ guardando ? 'Enviando...' : 'Marcar como resuelto' }}
+            </button>
+            <small v-if="!fotos.length" class="nota centrada">Necesitás al menos una foto para resolver.</small>
+          </template>
+
+          <!-- resuelto: solo lectura -->
+          <div v-else class="aviso-estado" :class="'aviso-' + reporte.nombre_estado">
+            <i class="bx" :class="AVISOS_ESTADO[reporte.nombre_estado]?.icono || 'bx-info-circle'"></i>
+            <div>
+              <strong>Sin acciones pendientes</strong>
+              <p>{{ reporte.nombre_estado === 'resuelto' ? 'Resolviste este reporte. Las fotos quedaron como evidencia de la limpieza.' : 'Este reporte no admite cambios en su estado actual.' }}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <!-- Evidencia fotográfica -->
-      <div class="card" style="margin-top:20px">
-        <h3><i class="bx bx-camera"></i> Evidencia fotográfica</h3>
-        <div v-if="reporte.evidencias && reporte.evidencias.length" class="evidencias">
-          <button
-            v-for="ev in reporte.evidencias"
-            :key="ev.id_evidencia"
-            type="button"
-            class="evidencia"
-            @click="imagenAmpliada = ev.url_imagen"
-          >
-            <img :src="ev.url_imagen" :alt="'Evidencia ' + ev.id_evidencia" />
-          </button>
+      <!-- Evidencia fotográfica: antes (ciudadano) y después (limpieza) -->
+      <div class="evidencia-grid">
+        <div class="card">
+          <h3><i class="bx bx-user"></i> Evidencia del ciudadano <span class="etiqueta">Antes</span></h3>
+          <GaleriaEvidencia :imagenes="evidenciaCiudadana" vacio="El ciudadano no adjuntó fotografías." />
         </div>
-        <p v-else class="sin-evidencia">Este reporte no tiene fotografías de evidencia.</p>
+        <div class="card">
+          <h3><i class="bx bx-badge-check"></i> Evidencia de la limpieza <span class="etiqueta despues">Después</span></h3>
+          <GaleriaEvidencia
+            :imagenes="evidenciaLimpieza"
+            :vacio="reporte.nombre_estado === 'resuelto' ? 'No hay fotografías de la limpieza.' : 'Las fotos se agregan cuando la cuadrilla resuelve el reporte.'"
+          />
+        </div>
       </div>
 
       <!-- Historial -->
@@ -242,12 +391,6 @@ onMounted(() => {
         </ul>
       </div>
     </div>
-
-    <!-- Lightbox de evidencia -->
-    <div v-if="imagenAmpliada" class="lightbox" @click="imagenAmpliada = null">
-      <button type="button" class="cerrar" title="Cerrar"><i class="bx bx-x"></i></button>
-      <img :src="imagenAmpliada" alt="Evidencia ampliada" @click.stop />
-    </div>
   </div>
 </template>
 
@@ -261,7 +404,7 @@ onMounted(() => {
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .card h3 {
   color: var(--forest-dark); font-size: 15px; font-weight: 700; margin-bottom: 14px;
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 .card p { margin: 8px 0; font-size: 14px; }
 .fila { display: flex; align-items: center; gap: 8px; }
@@ -273,6 +416,7 @@ onMounted(() => {
 .responsable i { font-size: 15px; }
 .sin-asignar { color: var(--text-secondary); font-style: italic; }
 label i { color: var(--forest); font-size: 15px; vertical-align: -2px; }
+.como-llegar { padding: 7px 14px; font-size: 13px; text-decoration: none; margin: 2px 0 6px; }
 .actual {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   background: var(--bg); border-radius: var(--radius-input); padding: 10px 12px; margin-bottom: 4px;
@@ -301,8 +445,39 @@ label i { color: var(--forest); font-size: 15px; vertical-align: -2px; }
 .aviso-en_atencion i { color: #93650A; }
 .aviso-resuelto i { color: var(--forest); }
 .aviso-descartado i { color: #667085; }
-.nota { display: block; margin-top: 6px; font-size: 12px; color: var(--text-secondary); }
+.nota { display: flex; align-items: center; gap: 4px; margin-top: 6px; font-size: 12px; color: var(--text-secondary); }
+.nota.centrada { justify-content: center; }
 .error-nota { color: #B42318; }
+
+/* ---------- Encargado de cuadrilla ---------- */
+.ayuda { font-size: 13px !important; color: var(--text-secondary); margin-top: 0 !important; }
+.contador {
+  float: right; font-weight: 600; font-size: 12px; color: var(--forest);
+  background: #E9F3E1; border-radius: 20px; padding: 1px 8px;
+}
+.input-oculto { display: none; }
+.botones-foto { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.miniaturas { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 12px; }
+.miniatura {
+  position: relative; aspect-ratio: 1; border-radius: var(--radius-input);
+  overflow: hidden; border: 1px solid var(--border);
+}
+.miniatura img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.quitar {
+  position: absolute; top: 4px; right: 4px; width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(16, 24, 40, .7); color: #fff; border: none; border-radius: 50%; font-size: 17px;
+}
+.quitar:hover { background: #B42318; }
+
+/* ---------- Evidencia antes / después ---------- */
+.evidencia-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+.etiqueta {
+  margin-left: auto; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  background: #FDECEA; color: #B42318; border-radius: 20px; padding: 2px 10px;
+}
+.etiqueta.despues { background: #E9F3E1; color: var(--forest); }
+
 .timeline { list-style: none; }
 .timeline li { padding: 8px 0 8px 18px; position: relative; font-size: 13px; border-left: 2px solid var(--moss); margin-left: 4px; }
 .timeline li:before {
@@ -310,7 +485,6 @@ label i { color: var(--forest); font-size: 15px; vertical-align: -2px; }
   width: 10px; height: 10px; border-radius: 50%; background: var(--moss);
 }
 .grid.unica { grid-template-columns: 1fr; }
-@media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
 .solo-lectura {
   display: flex; align-items: center; gap: 8px;
   background: var(--cream); border: 1px solid #DCE6CC; color: var(--forest);
@@ -318,31 +492,16 @@ label i { color: var(--forest); font-size: 15px; vertical-align: -2px; }
 }
 .solo-lectura i { font-size: 17px; }
 
-.evidencias { display: flex; flex-wrap: wrap; gap: 10px; }
-.evidencia {
-  width: 110px; height: 110px; padding: 0; border: 1px solid var(--border);
-  border-radius: var(--radius-input); overflow: hidden; background: none;
-  transition: border-color .15s, transform .15s;
+@media (max-width: 700px) {
+  .grid, .evidencia-grid { grid-template-columns: 1fr; }
+  /* En el campo, la cuadrilla ve primero lo que tiene que hacer. */
+  .grid-cuadrilla .card-acciones { order: -1; }
+  .btn-grande { min-height: 48px; font-size: 15px; }
+  .como-llegar { min-height: 44px; width: 100%; }
+  .miniaturas { grid-template-columns: repeat(3, 1fr); }
+  .quitar { width: 30px; height: 30px; }
 }
-.evidencia:hover { border-color: var(--moss); transform: translateY(-2px); }
-.evidencia img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.sin-evidencia { font-size: 13px; color: var(--text-secondary); }
-
-.lightbox {
-  position: fixed; inset: 0; z-index: 1000;
-  background: rgba(16, 24, 40, .8);
-  display: flex; align-items: center; justify-content: center;
-  padding: 32px;
+@media (max-width: 380px) {
+  .botones-foto { grid-template-columns: 1fr; }
 }
-.lightbox img {
-  max-width: 90vw; max-height: 88vh; border-radius: var(--radius-card);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, .4);
-}
-.lightbox .cerrar {
-  position: absolute; top: 20px; right: 24px;
-  width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
-  background: rgba(255, 255, 255, .15); color: #fff; border: none; border-radius: 50%;
-  font-size: 24px;
-}
-.lightbox .cerrar:hover { background: rgba(255, 255, 255, .3); }
 </style>

@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { reporteService } from '../services/api';
+import PanelCuadrilla from './PanelCuadrilla.vue';
 
 const router = useRouter();
 const reportes = ref([]);
@@ -12,10 +13,12 @@ const cargando = ref(true);
 const rol = JSON.parse(localStorage.getItem('usuario') || 'null')?.rol;
 const TEXTOS = {
   personal_municipal: { titulo: 'Reportes recibidos', sub: 'Gestioná los reportes de tu municipalidad.', vacio: 'No hay reportes registrados en tu municipalidad.' },
-  encargado_cuadrilla: { titulo: 'Mis reportes asignados', sub: 'Reportes asignados a tu cuadrilla para su atención.', vacio: 'No tenés reportes asignados por ahora.' },
   administrador: { titulo: 'Reportes', sub: 'Todos los reportes de la plataforma (solo lectura).', vacio: 'No hay reportes registrados.' },
 };
 const textos = TEXTOS[rol] || TEXTOS.personal_municipal;
+
+// El encargado de cuadrilla tiene su propio panel (pendientes / en atención / resueltos).
+const esCuadrilla = rol === 'encargado_cuadrilla';
 
 const totalReportes = computed(() => reportes.value.length);
 const totalRecibidos = computed(() => reportes.value.filter((r) => r.nombre_estado === 'recibido').length);
@@ -42,11 +45,14 @@ function fecha(f) {
   return new Date(f).toLocaleDateString('es-GT');
 }
 
-onMounted(cargar);
+onMounted(() => {
+  if (!esCuadrilla) cargar();
+});
 </script>
 
 <template>
-  <div class="container">
+  <PanelCuadrilla v-if="esCuadrilla" />
+  <div v-else class="container">
     <h1 class="title">{{ textos.titulo }}</h1>
     <p class="sub">{{ textos.sub }}</p>
 

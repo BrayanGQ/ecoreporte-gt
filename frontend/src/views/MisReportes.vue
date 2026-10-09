@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { reporteService } from '../services/api';
+import GaleriaEvidencia from '../components/GaleriaEvidencia.vue';
 
 const reportes = ref([]);
 const error = ref('');
@@ -54,7 +55,7 @@ onMounted(cargar);
 <template>
   <div class="container">
     <h1 class="title"><i class="bx bx-list-ul"></i> Mis reportes</h1>
-    <p class="sub">Reportes que registraste con tu cuenta. Hacé clic en uno para ver su historial.</p>
+    <p class="sub">Reportes que registraste con tu cuenta. Hacé clic en uno para ver su historial y, si ya fue resuelto, las fotos de la limpieza.</p>
 
     <div v-if="error" class="alert error"><i class="bx bx-error-circle"></i> {{ error }}</div>
     <div v-if="cargando" class="alert ok"><i class="bx bx-loader-alt bx-spin"></i> Cargando tus reportes...</div>
@@ -72,6 +73,9 @@ onMounted(cargar);
               <strong>{{ r.codigo_seguimiento }}</strong>
               <span class="tipo">{{ r.nombre_tipo }}</span>
             </div>
+            <span v-if="r.evidencias_municipales?.length" class="con-fotos" title="Tiene fotos de la limpieza">
+              <i class="bx bx-camera"></i> {{ r.evidencias_municipales.length }}
+            </span>
             <span class="badge" :class="'b-' + r.nombre_estado">{{ r.nombre_estado }}</span>
             <span class="fecha">{{ fecha(r.fecha_reporte) }}</span>
             <i class="bx chevron" :class="abierto === r.id_reporte ? 'bx-chevron-up' : 'bx-chevron-down'"></i>
@@ -79,6 +83,16 @@ onMounted(cargar);
 
           <div v-if="abierto === r.id_reporte" class="detalle">
             <p v-if="r.descripcion" class="descripcion">{{ r.descripcion }}</p>
+
+            <!-- Reporte resuelto: fotos de la limpieza tomadas por la cuadrilla -->
+            <div v-if="r.nombre_estado === 'resuelto'" class="resultado">
+              <h4><i class="bx bx-badge-check"></i> Resultado de la limpieza</h4>
+              <GaleriaEvidencia
+                :imagenes="r.evidencias_municipales || []"
+                vacio="Este reporte se resolvió sin fotos de la limpieza."
+              />
+            </div>
+
             <div v-if="cargandoHistorial && !historiales[r.id_reporte]" class="cargando-historial">
               <i class="bx bx-loader-alt bx-spin"></i> Cargando historial...
             </div>
@@ -127,6 +141,18 @@ onMounted(cargar);
 .chevron { font-size: 18px; color: var(--text-secondary); }
 .detalle { padding: 0 20px 20px 20px; }
 .descripcion { font-size: 13.5px; color: var(--text-secondary); margin-bottom: 12px; }
+.con-fotos {
+  display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 600;
+  color: var(--forest); background: #E9F3E1; border-radius: 20px; padding: 2px 8px;
+}
+.resultado {
+  background: var(--cream); border: 1px solid #DCE6CC; border-radius: var(--radius-input);
+  padding: 14px; margin-bottom: 14px;
+}
+.resultado h4 {
+  display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--forest-dark); margin-bottom: 10px;
+}
+.resultado h4 i { font-size: 18px; color: var(--forest); }
 .cargando-historial { font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
 .timeline { list-style: none; }
 .timeline li { padding: 8px 0 8px 18px; position: relative; font-size: 13px; border-left: 2px solid var(--moss); margin-left: 4px; }

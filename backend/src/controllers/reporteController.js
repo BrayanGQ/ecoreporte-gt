@@ -153,7 +153,26 @@ async function misReportes(req, res) {
        ORDER BY r.fecha_reporte DESC`,
       [req.usuario.id_usuario]
     );
-    res.json(result.rows);
+
+    // Evidencia de la limpieza (municipal) de los reportes resueltos, para que el
+    // ciudadano vea el resultado.
+    const resueltos = result.rows.filter((r) => r.nombre_estado === 'resuelto').map((r) => r.id_reporte);
+    const evidencias = resueltos.length
+      ? (await query(
+          `SELECT id_reporte, id_evidencia, url_imagen, fecha_carga
+           FROM evidencia_fotografica
+           WHERE tipo_evidencia = 'municipal' AND id_reporte = ANY($1::int[])
+           ORDER BY fecha_carga, id_evidencia`,
+          [resueltos]
+        )).rows
+      : [];
+
+    res.json(result.rows.map((r) => ({
+      ...r,
+      evidencias_municipales: evidencias
+        .filter((ev) => ev.id_reporte === r.id_reporte)
+        .map(({ id_evidencia, url_imagen, fecha_carga }) => ({ id_evidencia, url_imagen, fecha_carga })),
+    })));
   } catch (err) {
     console.error('Error al obtener mis reportes:', err.message);
     res.status(500).json({ error: 'Error al obtener tus reportes.' });
@@ -222,7 +241,10 @@ async function detalleReporte(req, res) {
     }
 
     const evidencias = await query(
-      'SELECT id_evidencia, url_imagen, tipo_evidencia, fecha_carga FROM evidencia_fotografica WHERE id_reporte = $1',
+      // tipo_evidencia: 'ciudadana' (al reportar) o 'municipal' (limpieza, al resolver).
+      `SELECT id_evidencia, url_imagen, tipo_evidencia, fecha_carga
+       FROM evidencia_fotografica WHERE id_reporte = $1
+       ORDER BY fecha_carga, id_evidencia`,
       [id]
     );
     const historial = await query(
@@ -320,7 +342,8 @@ function textoOpcional(valor, campo) {
 // Ejecuta una acción del flujo en una transacción: bloquea el reporte, valida el alcance
 // del usuario, deja que `decidir` valide la transición y devuelva el cambio, y luego
 // actualiza el reporte, registra el historial y notifica al ciudadano.
-// `decidir(reporte, client)` devuelve { estado, id_usuario_asignado?, comentario, mensaje_ciudadano }.
+// `decidir(reporte, client)` devuelve
+// { estado, id_usuario_asignado?, comentario, mensaje_ciudadano, evidencias_municipales? }.
 async function ejecutarAccion(req, res, decidir) {
   const { id } = req.params;
   if (!/^\d+$/.test(id)) {
@@ -369,6 +392,15 @@ async function ejecutarAccion(req, res, decidir) {
        VALUES ($1, $2, $3, $4)`,
       [id, idEstado, req.usuario.id_usuario, cambio.comentario.slice(0, LARGO_MAX_COMENTARIO)]
     );
+
+    // Evidencia de la atención (por ahora solo al resolver), cargada por el usuario del token.
+    for (const imagen of cambio.evidencias_municipales || []) {
+      await client.query(
+        `INSERT INTO evidencia_fotografica (id_reporte, id_usuario, url_imagen, tipo_evidencia, fecha_carga)
+         VALUES ($1, $2, $3, 'municipal', NOW())`,
+        [id, req.usuario.id_usuario, imagen]
+      );
+    }
 
     // Si el reporte tiene un ciudadano registrado, se le genera una notificación.
     if (reporte.id_usuario_reporta) {
@@ -465,16 +497,48 @@ function iniciar(req, res) {
   });
 }
 
-// POST /api/reportes/:id/resolver — encargado de cuadrilla. Body: { comentario } (opcional).
-// en_atencion -> resuelto.
+// Evidencia de la limpieza al resolver: entre 1 y 5 imágenes en base64 (data URL).
+const MIN_EVIDENCIAS = 1;
+const MAX_EVIDENCIAS = 5;
+const MAX_CARACTERES_IMAGEN = 5 * 1024 * 1024; // ~3,7 MB de imagen por foto
+const DATA_URL_IMAGEN = /^data:image\/[\w.+-]+;base64,[A-Za-z0-9+/]+={0,2}$/;
+
+function validarEvidencias(evidencias) {
+  if (evidencias == null || (Array.isArray(evidencias) && evidencias.length === 0)) {
+    throw new ErrorAccion(400,
+      'Para resolver el reporte es obligatorio adjuntar al menos una foto de la limpieza (campo evidencias).');
+  }
+  if (!Array.isArray(evidencias)) {
+    throw new ErrorAccion(400, 'El campo evidencias debe ser un arreglo de imágenes en base64.');
+  }
+  if (evidencias.length < MIN_EVIDENCIAS || evidencias.length > MAX_EVIDENCIAS) {
+    throw new ErrorAccion(400,
+      `Se permiten entre ${MIN_EVIDENCIAS} y ${MAX_EVIDENCIAS} fotos de la limpieza; se recibieron ${evidencias.length}.`);
+  }
+  evidencias.forEach((img, i) => {
+    if (typeof img !== 'string' || !DATA_URL_IMAGEN.test(img)) {
+      throw new ErrorAccion(400, `La foto ${i + 1} no es una imagen válida en base64 (data:image/...;base64,...).`);
+    }
+    if (img.length > MAX_CARACTERES_IMAGEN) {
+      throw new ErrorAccion(400, `La foto ${i + 1} es demasiado grande. Reducí su tamaño e intentá de nuevo.`);
+    }
+  });
+  return evidencias;
+}
+
+// POST /api/reportes/:id/resolver — encargado de cuadrilla.
+// Body: { evidencias: [dataUrl, ...] } (obligatorio, 1 a 5 fotos) y { comentario } (opcional).
+// en_atencion -> resuelto. Las fotos se guardan como evidencia 'municipal'.
 function resolver(req, res) {
   return ejecutarAccion(req, res, async (reporte) => {
     const comentario = textoOpcional(req.body.comentario, 'comentario');
     exigirEstado(reporte, ['en_atencion'], 'resolver');
+    const evidencias = validarEvidencias(req.body.evidencias);
     return {
       estado: 'resuelto',
       comentario: comentario || 'Reporte resuelto',
       mensaje_ciudadano: mensajeEstado(reporte, 'resuelto'),
+      evidencias_municipales: evidencias,
     };
   });
 }

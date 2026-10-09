@@ -44,7 +44,8 @@ export const reporteService = {
   asignar: (id, id_usuario_asignado) => api.post(`/reportes/${id}/asignar`, { id_usuario_asignado }),
   descartar: (id, motivo) => api.post(`/reportes/${id}/descartar`, { motivo }),
   iniciar: (id, comentario) => api.post(`/reportes/${id}/iniciar`, { comentario }),
-  resolver: (id, comentario) => api.post(`/reportes/${id}/resolver`, { comentario }),
+  // evidencias: arreglo de 1 a 5 fotos de la limpieza en base64 (obligatorio).
+  resolver: (id, comentario, evidencias) => api.post(`/reportes/${id}/resolver`, { comentario, evidencias }),
   asignables: (id) => api.get(`/reportes/${id}/asignables`),
 };
 

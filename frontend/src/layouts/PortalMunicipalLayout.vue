@@ -34,7 +34,9 @@ function cerrarSesion() {
         </div>
       </div>
       <nav>
-        <router-link to="/municipal/panel"><i class="bx bx-grid-alt"></i> Reportes</router-link>
+        <router-link to="/municipal/panel">
+          <i class="bx bx-grid-alt"></i> {{ usuario?.rol === 'encargado_cuadrilla' ? 'Mis reportes' : 'Reportes' }}
+        </router-link>
         <router-link v-if="esPersonal" to="/municipal/panel/estadisticas"><i class="bx bx-bar-chart-alt-2"></i> Estadísticas</router-link>
 
         <template v-if="esAdministrador">
