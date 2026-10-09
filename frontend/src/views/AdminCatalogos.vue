@@ -153,6 +153,25 @@ async function guardarMunicipalidad() {
   }
 }
 
+// Activar = la municipalidad adoptó la plataforma: los reportes dentro de su límite
+// territorial se le asignan automáticamente. Desactivar deja la zona sin cobertura.
+const cambiandoEstado = ref(null); // id de la municipalidad en proceso
+
+async function alternarEstadoMunicipalidad(muni) {
+  error.value = '';
+  exito.value = '';
+  cambiandoEstado.value = muni.id_municipalidad;
+  try {
+    const { data } = await adminService.cambiarEstadoMunicipalidad(muni.id_municipalidad, !muni.estado_activo);
+    Object.assign(muni, data.municipalidad);
+    exito.value = `${data.mensaje} (${muni.nombre})`;
+  } catch (err) {
+    error.value = err.response?.data?.error || 'No se pudo cambiar el estado de la municipalidad.';
+  } finally {
+    cambiandoEstado.value = null;
+  }
+}
+
 onMounted(cargar);
 </script>
 
@@ -254,7 +273,7 @@ onMounted(cargar);
 
         <label class="check-label">
           <input type="checkbox" v-model="formMuni.estado_activo" />
-          Municipalidad activa (disponible en los formularios de reporte)
+          Municipalidad activa (adoptó la plataforma: recibe los reportes dentro de su límite)
         </label>
 
         <div class="form-actions">
@@ -277,6 +296,7 @@ onMounted(cargar);
                 <th>Nombre</th>
                 <th>Departamento</th>
                 <th>Dirección</th>
+                <th>Límite</th>
                 <th>Estado</th>
                 <th>Acción</th>
               </tr>
@@ -287,18 +307,34 @@ onMounted(cargar);
                 <td>{{ m.departamento }}</td>
                 <td>{{ m.direccion || '—' }}</td>
                 <td>
+                  <span v-if="m.tiene_limite" class="limite"><i class="bx bx-map-alt"></i> Cargado</span>
+                  <span v-else class="limite sin" title="Sin límite, ningún reporte puede asignarse a esta municipalidad">
+                    <i class="bx bx-error"></i> Sin límite
+                  </span>
+                </td>
+                <td>
                   <span class="badge" :class="m.estado_activo ? 'b-resuelto' : 'b-descartado'">
                     {{ m.estado_activo ? 'Activa' : 'Inactiva' }}
                   </span>
                 </td>
                 <td>
-                  <button class="btn ghost btn-sm" @click="editarMunicipalidad(m)">
-                    <i class="bx bx-edit"></i> Editar
-                  </button>
+                  <div class="acciones">
+                    <button
+                      class="btn ghost btn-sm"
+                      :disabled="cambiandoEstado === m.id_municipalidad"
+                      @click="alternarEstadoMunicipalidad(m)"
+                    >
+                      <i :class="m.estado_activo ? 'bx bx-power-off' : 'bx bx-check-circle'"></i>
+                      {{ m.estado_activo ? 'Desactivar' : 'Activar' }}
+                    </button>
+                    <button class="btn ghost btn-sm" @click="editarMunicipalidad(m)">
+                      <i class="bx bx-edit"></i> Editar
+                    </button>
+                  </div>
                 </td>
               </tr>
               <tr v-if="municipalidades.length === 0">
-                <td colspan="5" class="empty">No hay municipalidades registradas.</td>
+                <td colspan="6" class="empty">No hay municipalidades registradas.</td>
               </tr>
             </tbody>
           </table>
@@ -358,6 +394,10 @@ onMounted(cargar);
 .table-card { padding: 0; }
 .btn-sm { padding: 7px 13px; font-size: 12.5px; }
 .empty { text-align: center; padding: 28px; color: var(--text-secondary); }
+.acciones { display: flex; gap: 8px; }
+.acciones .btn { white-space: nowrap; }
+.limite { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--forest); white-space: nowrap; }
+.limite.sin { color: #93650A; }
 
 @media (max-width: 768px) {
   .grid-2 { grid-template-columns: 1fr; }

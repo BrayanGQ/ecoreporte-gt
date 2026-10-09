@@ -31,6 +31,9 @@ router.post('/auth/restablecer', auth.restablecerPassword);
 router.get('/catalogos/tipos', catalogo.tiposIncidencia);
 router.get('/catalogos/estados', catalogo.estados);
 router.get('/catalogos/municipalidades', catalogo.municipalidades);
+// Municipalidad según la ubicación (PostGIS) y contornos de las activas, para el mapa del reporte.
+router.get('/catalogos/municipalidad-por-ubicacion', catalogo.municipalidadPorUbicacion);
+router.get('/catalogos/limites-activos', catalogo.limitesActivos);
 
 // ---------- Reportes ----------
 // Registro ciudadano y consulta pública: no requieren autenticación.
@@ -78,5 +81,6 @@ router.put('/admin/tipos-incidencia/:id', soloAdmin, admin.editarTipoIncidencia)
 router.get('/admin/municipalidades', soloAdmin, admin.listarMunicipalidades);
 router.post('/admin/municipalidades', soloAdmin, admin.crearMunicipalidad);
 router.put('/admin/municipalidades/:id', soloAdmin, admin.editarMunicipalidad);
+router.put('/admin/municipalidades/:id/estado', soloAdmin, admin.cambiarEstadoMunicipalidad);
 
 module.exports = router;

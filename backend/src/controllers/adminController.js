@@ -232,10 +232,13 @@ async function editarTipoIncidencia(req, res) {
 // =========================================================================
 
 // GET /api/admin/municipalidades — lista completa (incluye las inactivas).
+// tiene_limite indica si la municipalidad tiene cargado su límite territorial (PostGIS):
+// sin límite, ningún reporte puede caer en ella aunque esté activa.
 async function listarMunicipalidades(req, res) {
   try {
     const r = await query(
-      `SELECT id_municipalidad, nombre, departamento, direccion, estado_activo
+      `SELECT id_municipalidad, nombre, departamento, direccion, estado_activo,
+              (limite IS NOT NULL) AS tiene_limite
        FROM municipalidad ORDER BY nombre`
     );
     res.json(r.rows);
@@ -321,6 +324,34 @@ async function editarMunicipalidad(req, res) {
   }
 }
 
+// PUT /api/admin/municipalidades/:id/estado — activa o desactiva una municipalidad.
+// Activa = adoptó la plataforma: los reportes dentro de su límite se le asignan.
+async function cambiarEstadoMunicipalidad(req, res) {
+  const { id } = req.params;
+  const { estado_activo } = req.body;
+  if (typeof estado_activo !== 'boolean') {
+    return res.status(400).json({ error: 'El estado debe ser verdadero o falso.' });
+  }
+  try {
+    const r = await query(
+      `UPDATE municipalidad SET estado_activo = $1 WHERE id_municipalidad = $2
+       RETURNING id_municipalidad, nombre, departamento, direccion, estado_activo,
+                 (limite IS NOT NULL) AS tiene_limite`,
+      [estado_activo, id]
+    );
+    if (r.rows.length === 0) {
+      return res.status(404).json({ error: 'La municipalidad no existe.' });
+    }
+    res.json({
+      mensaje: estado_activo ? 'Municipalidad activada.' : 'Municipalidad desactivada.',
+      municipalidad: r.rows[0],
+    });
+  } catch (err) {
+    console.error('Error al cambiar el estado de la municipalidad:', err.message);
+    res.status(500).json({ error: 'Error al actualizar el estado de la municipalidad.' });
+  }
+}
+
 module.exports = {
   listarUsuarios,
   listarRoles,
@@ -332,4 +363,5 @@ module.exports = {
   listarMunicipalidades,
   crearMunicipalidad,
   editarMunicipalidad,
+  cambiarEstadoMunicipalidad,
 };

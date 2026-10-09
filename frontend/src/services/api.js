@@ -28,6 +28,11 @@ export const catalogoService = {
   tipos: () => api.get('/catalogos/tipos'),
   estados: () => api.get('/catalogos/estados'),
   municipalidades: () => api.get('/catalogos/municipalidades'),
+  // Municipalidad cuyo límite contiene el punto (y si está activa).
+  municipalidadPorUbicacion: (lat, lng) =>
+    api.get('/catalogos/municipalidad-por-ubicacion', { params: { lat, lng } }),
+  // Contornos (GeoJSON) de las municipalidades activas, para dibujarlos en el mapa.
+  limitesActivos: () => api.get('/catalogos/limites-activos'),
 };
 
 // --- Reportes ---
@@ -73,6 +78,8 @@ export const adminService = {
   municipalidades: () => api.get('/admin/municipalidades'),
   crearMunicipalidad: (datos) => api.post('/admin/municipalidades', datos),
   editarMunicipalidad: (id, datos) => api.put(`/admin/municipalidades/${id}`, datos),
+  cambiarEstadoMunicipalidad: (id, estado_activo) =>
+    api.put(`/admin/municipalidades/${id}/estado`, { estado_activo }),
 };
 
 // --- Notificaciones ---

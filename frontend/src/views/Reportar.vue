@@ -4,10 +4,8 @@ import L from 'leaflet';
 import { catalogoService, reporteService } from '../services/api';
 
 const tipos = ref([]);
-const municipalidades = ref([]);
 const form = ref({
   id_tipo_incidencia: '',
-  id_municipalidad: '',
   descripcion: '',
   latitud: 14.6349,
   longitud: -90.5133,
@@ -16,6 +14,33 @@ const codigoGenerado = ref('');
 const error = ref('');
 const cargando = ref(false);
 let marcador = null;
+
+// Municipalidad que atenderá el reporte, detectada por la ubicación del marcador.
+// El backend vuelve a decidirla al registrar el reporte; esto es solo la vista previa.
+// estado: 'consultando' | 'cubierta' | 'sin_cobertura' | 'error'
+const cobertura = ref({ estado: 'consultando', nombre: '', mensaje: '' });
+let consultaActual = 0; // descarta respuestas de consultas viejas si el marcador se movió otra vez
+
+async function actualizarCobertura() {
+  const consulta = ++consultaActual;
+  cobertura.value = { estado: 'consultando', nombre: '', mensaje: '' };
+  try {
+    const { data } = await catalogoService.municipalidadPorUbicacion(form.value.latitud, form.value.longitud);
+    if (consulta !== consultaActual) return;
+    cobertura.value = data.cubierta
+      ? { estado: 'cubierta', nombre: data.municipalidad.nombre, mensaje: data.mensaje }
+      : { estado: 'sin_cobertura', nombre: '', mensaje: data.mensaje };
+  } catch (e) {
+    if (consulta !== consultaActual) return;
+    cobertura.value = { estado: 'error', nombre: '', mensaje: 'No se pudo verificar qué municipalidad atiende esta zona.' };
+  }
+}
+
+function moverMarcador(lat, lng) {
+  form.value.latitud = lat;
+  form.value.longitud = lng;
+  actualizarCobertura();
+}
 
 // Evidencia fotográfica: hasta 5 imágenes convertidas a base64.
 const MAX_IMAGENES = 5;
@@ -70,10 +95,8 @@ function quitarImagen(indice) {
 onMounted(async () => {
   // Carga catálogos.
   try {
-    const [t, m] = await Promise.all([catalogoService.tipos(), catalogoService.municipalidades()]);
-    tipos.value = t.data;
-    municipalidades.value = m.data;
-    if (m.data.length) form.value.id_municipalidad = m.data[0].id_municipalidad;
+    const { data } = await catalogoService.tipos();
+    tipos.value = data;
   } catch (e) {
     error.value = 'No se pudieron cargar los catálogos. ¿Está encendido el backend?';
   }
@@ -84,28 +107,37 @@ onMounted(async () => {
     attribution: '© OpenStreetMap',
   }).addTo(map);
 
-  marcador = L.marker([form.value.latitud, form.value.longitud], { draggable: true }).addTo(map);
+  // Contorno de las municipalidades activas (zona cubierta por la plataforma).
+  // No es interactivo: los clics pasan al mapa para colocar el marcador.
+  catalogoService.limitesActivos()
+    .then(({ data }) => {
+      L.geoJSON(data, {
+        interactive: false,
+        style: { color: '#2C5F2D', weight: 2, dashArray: '6 4', fillColor: '#97BC62', fillOpacity: 0.08 },
+      }).addTo(map);
+    })
+    .catch(() => { /* sin contornos el formulario funciona igual */ });
 
-  // Actualiza las coordenadas al arrastrar el marcador o hacer clic en el mapa.
+  marcador = L.marker([form.value.latitud, form.value.longitud], { draggable: true }).addTo(map);
+  actualizarCobertura();
+
+  // Actualiza las coordenadas (y la municipalidad) al arrastrar el marcador o hacer clic en el mapa.
   marcador.on('dragend', () => {
     const { lat, lng } = marcador.getLatLng();
-    form.value.latitud = lat;
-    form.value.longitud = lng;
+    moverMarcador(lat, lng);
   });
   map.on('click', (e) => {
     marcador.setLatLng(e.latlng);
-    form.value.latitud = e.latlng.lat;
-    form.value.longitud = e.latlng.lng;
+    moverMarcador(e.latlng.lat, e.latlng.lng);
   });
 
   // Intenta usar la geolocalización real del navegador.
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition((pos) => {
       const { latitude, longitude } = pos.coords;
-      form.value.latitud = latitude;
-      form.value.longitud = longitude;
       map.setView([latitude, longitude], 15);
       marcador.setLatLng([latitude, longitude]);
+      moverMarcador(latitude, longitude);
     });
   }
 });
@@ -119,6 +151,10 @@ async function enviar() {
   }
   if (imagenes.value.length > MAX_IMAGENES) {
     error.value = `Solo se pueden adjuntar hasta ${MAX_IMAGENES} fotografías.`;
+    return;
+  }
+  if (cobertura.value.estado !== 'cubierta') {
+    error.value = cobertura.value.mensaje || 'Esperá a que se verifique la ubicación.';
     return;
   }
   cargando.value = true;
@@ -162,13 +198,6 @@ async function enviar() {
         </option>
       </select>
 
-      <label>Municipalidad</label>
-      <select v-model="form.id_municipalidad">
-        <option v-for="m in municipalidades" :key="m.id_municipalidad" :value="m.id_municipalidad">
-          {{ m.nombre }}
-        </option>
-      </select>
-
       <label>Descripción</label>
       <textarea v-model="form.descripcion" placeholder="Describí lo que observaste..."></textarea>
 
@@ -204,9 +233,28 @@ async function enviar() {
 
       <label><i class="bx bx-current-location"></i> Ubicación en el mapa (arrastrá el marcador o hacé clic)</label>
       <div id="map" class="map-box"></div>
-      <p class="coords">Coordenadas: {{ form.latitud.toFixed(5) }}, {{ form.longitud.toFixed(5) }}</p>
+      <p class="coords">
+        Coordenadas: {{ form.latitud.toFixed(5) }}, {{ form.longitud.toFixed(5) }}
+        <span class="leyenda"><span class="muestra"></span> Zona cubierta por la plataforma</span>
+      </p>
 
-      <button class="btn block" style="margin-top:24px" :disabled="cargando" @click="enviar">
+      <!-- Municipalidad detectada según la ubicación del marcador -->
+      <div class="cobertura" :class="'c-' + cobertura.estado" role="status" aria-live="polite">
+        <template v-if="cobertura.estado === 'consultando'">
+          <i class="bx bx-loader-alt bx-spin"></i>
+          <span>Verificando qué municipalidad atiende esta ubicación...</span>
+        </template>
+        <template v-else-if="cobertura.estado === 'cubierta'">
+          <i class="bx bx-building-house"></i>
+          <span>Este reporte será atendido por: <strong>{{ cobertura.nombre }}</strong></span>
+        </template>
+        <template v-else>
+          <i class="bx bx-error"></i>
+          <span>{{ cobertura.mensaje }}<template v-if="cobertura.estado === 'sin_cobertura'"> Mové el marcador a una zona cubierta para poder enviarlo.</template></span>
+        </template>
+      </div>
+
+      <button class="btn block" style="margin-top:24px" :disabled="cargando || cobertura.estado !== 'cubierta'" @click="enviar">
         <i class="bx bx-send"></i> {{ cargando ? 'Enviando...' : 'Enviar reporte' }}
       </button>
     </div>
@@ -216,7 +264,25 @@ async function enviar() {
 <style scoped>
 .title { display: flex; align-items: center; gap: 10px; }
 .map-box { height: 280px; border-radius: var(--radius-card); margin-top: 8px; border: 1px solid var(--border); overflow: hidden; }
-.coords { font-size: 12.5px; color: var(--text-secondary); margin-top: 8px; }
+.coords {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px;
+  font-size: 12.5px; color: var(--text-secondary); margin-top: 8px;
+}
+.leyenda { display: inline-flex; align-items: center; gap: 6px; }
+.muestra {
+  width: 18px; height: 12px; border: 2px dashed var(--forest); border-radius: 3px;
+  background: rgba(151, 188, 98, .15);
+}
+.cobertura {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin-top: 12px; padding: 12px 14px; border-radius: var(--radius-input);
+  border: 1px solid var(--border); background: var(--bg);
+  font-size: 13.5px; color: var(--slate);
+}
+.cobertura i { font-size: 20px; flex-shrink: 0; }
+.c-consultando { color: var(--text-secondary); }
+.c-cubierta { background: #EDF6E8; border-color: #CDE7BE; color: #256029; }
+.c-sin_cobertura, .c-error { background: #FFF6E0; border-color: #F5DFA0; color: #7A5300; }
 
 .input-oculto { display: none; }
 .dropzone {

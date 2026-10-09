@@ -1,5 +1,6 @@
 // Controlador de reportes: registro ciudadano, consulta, listado y gestión municipal.
 const { query, pool } = require('../config/db');
+const { SIN_COBERTURA, leerCoordenadas, municipalidadEnPunto } = require('../utils/ubicacion');
 
 // Genera un código de seguimiento legible, por ejemplo ER-2026-0001.
 function generarCodigo(id) {
@@ -22,14 +23,20 @@ function puedeVerReporte(usuario, reporte) {
 const SIN_ACCESO = 'No tenés acceso a este reporte.';
 
 // POST /api/reportes — registro de un reporte ciudadano (público, sin autenticación).
+// La municipalidad se determina aquí por la ubicación (límites en PostGIS): cualquier
+// id_municipalidad que envíe el cliente se ignora.
 async function crearReporte(req, res) {
   const {
-    id_tipo_incidencia, id_municipalidad, descripcion,
+    id_tipo_incidencia, descripcion,
     latitud, longitud, id_usuario_reporta, evidencias,
   } = req.body;
 
-  if (!id_tipo_incidencia || !id_municipalidad || latitud == null || longitud == null) {
-    return res.status(400).json({ error: 'Tipo de incidencia, municipalidad y ubicación son obligatorios.' });
+  if (!id_tipo_incidencia || latitud == null || longitud == null) {
+    return res.status(400).json({ error: 'Tipo de incidencia y ubicación son obligatorios.' });
+  }
+  const coords = leerCoordenadas(latitud, longitud);
+  if (!coords) {
+    return res.status(400).json({ error: 'La ubicación indicada no es válida.' });
   }
 
   // Evidencias: arreglo opcional de imágenes en base64 (data URL). Entre 0 y 5.
@@ -44,6 +51,14 @@ async function crearReporte(req, res) {
   try {
     await client.query('BEGIN');
 
+    // Municipalidad responsable: la activa cuyo límite contiene el punto.
+    const muni = await municipalidadEnPunto(coords.lat, coords.lng, (t, p) => client.query(t, p));
+    if (!muni || !muni.estado_activo) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: SIN_COBERTURA });
+    }
+    const idMunicipalidad = muni.id_municipalidad;
+
     // Estado inicial: 'recibido'.
     const estadoRes = await client.query(
       "SELECT id_estado FROM estado_reporte WHERE nombre_estado = 'recibido'"
@@ -57,8 +72,8 @@ async function crearReporte(req, res) {
           descripcion, latitud, longitud)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id_reporte`,
-      [id_usuario_reporta || null, id_municipalidad, id_tipo_incidencia,
-       idEstadoRecibido, descripcion || null, latitud, longitud]
+      [id_usuario_reporta || null, idMunicipalidad, id_tipo_incidencia,
+       idEstadoRecibido, descripcion || null, coords.lat, coords.lng]
     );
     const idReporte = insert.rows[0].id_reporte;
 
@@ -89,6 +104,7 @@ async function crearReporte(req, res) {
       mensaje: 'Reporte registrado correctamente.',
       id_reporte: idReporte,
       codigo_seguimiento: codigo,
+      municipalidad: { id_municipalidad: idMunicipalidad, nombre: muni.nombre },
     });
   } catch (err) {
     await client.query('ROLLBACK');

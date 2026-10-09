@@ -16,8 +16,11 @@ Proyecto de graduación — Ingeniería en Sistemas, Universidad Mariano Gálvez
 ```
 ecoreporte/
 ├── database/
-│   ├── 01_esquema.sql          Estructura de las 9 tablas + índices
-│   └── 02_datos_iniciales.sql  Catálogos y usuarios de demostración
+│   ├── 01_esquema.sql              Estructura de las 9 tablas + índices
+│   ├── 02_datos_iniciales.sql      Catálogos y usuarios de demostración
+│   ├── 03_evidencia_base64.sql     Evidencias fotográficas en base64
+│   ├── 04_rol_cuadrilla.sql        Rol encargado_cuadrilla + usuario demo
+│   └── 05_limites_municipales.sql  Límites de los 17 municipios (PostGIS)
 ├── backend/
 │   ├── src/
 │   │   ├── config/db.js        Conexión a PostgreSQL
@@ -68,7 +71,14 @@ Cargá el esquema y los datos iniciales (desde la carpeta del proyecto):
 ```bash
 psql -U postgres -d ecoreporte -f database/01_esquema.sql
 psql -U postgres -d ecoreporte -f database/02_datos_iniciales.sql
+psql -U postgres -d ecoreporte -f database/03_evidencia_base64.sql
+psql -U postgres -d ecoreporte -f database/04_rol_cuadrilla.sql
+psql -U postgres -d ecoreporte -f database/05_limites_municipales.sql
 ```
+
+> Los scripts 04 y 05 se pueden volver a ejecutar sin duplicar datos. El 05 registra los
+> 17 municipios del departamento de Guatemala con su límite territorial; solo la
+> Municipalidad de Guatemala queda activa (ver "Datos geográficos" más abajo).
 
 > Si PostGIS no está habilitado, el primer script mostrará un error en la línea `CREATE EXTENSION postgis`. En ese caso, instalá PostGIS y volvé a ejecutarlo.
 
@@ -140,14 +150,15 @@ Todos usan la contraseña: **password123**
 | Rol                | Correo                     | Acceso                          |
 |--------------------|----------------------------|---------------------------------|
 | Administrador      | admin@ecoreporte.gt        | Configuración general           |
-| Personal municipal | municipal@ecoreporte.gt    | Panel de gestión de reportes    |
+| Personal municipal | municipal@ecoreporte.gt    | Coordinador: asigna y descarta  |
+| Encargado cuadrilla| cuadrilla@ecoreporte.gt    | Atiende y resuelve lo asignado  |
 | Ciudadano          | ciudadano@ecoreporte.gt    | Reportar y consultar            |
 
 ---
 
 ## Funcionalidades implementadas
 
-- **Registro ciudadano de reportes** con geolocalización sobre el mapa (Leaflet + OpenStreetMap), sin necesidad de crear cuenta.
+- **Registro ciudadano de reportes** con geolocalización sobre el mapa (Leaflet + OpenStreetMap), sin necesidad de crear cuenta. La municipalidad que atiende el reporte se detecta automáticamente según la ubicación (PostGIS).
 - **Mapa de reportes** con marcadores por color según el estado y filtros por estado y tipo.
 - **Consulta pública** del estado de un reporte mediante su código de seguimiento.
 - **Registro e inicio de sesión** de usuarios con contraseña cifrada (bcrypt).
@@ -169,11 +180,17 @@ Todos usan la contraseña: **password123**
 | POST   | /api/auth/restablecer             | Público           | Restablecer contraseña             |
 | GET    | /api/catalogos/tipos              | Público           | Tipos de incidencia                |
 | GET    | /api/catalogos/municipalidades    | Público           | Municipalidades activas            |
+| GET    | /api/catalogos/municipalidad-por-ubicacion?lat=&lng= | Público | Municipalidad que cubre un punto |
+| GET    | /api/catalogos/limites-activos    | Público           | Contornos de las municipalidades activas (GeoJSON) |
 | POST   | /api/reportes                     | Público           | Registrar un reporte               |
 | GET    | /api/reportes                     | Público           | Listar reportes (con filtros)      |
 | GET    | /api/reportes/consulta/:codigo    | Público           | Consultar por código               |
 | GET    | /api/reportes/:id/detalle         | Autenticado       | Detalle completo del reporte       |
-| PUT    | /api/reportes/:id/estado          | Municipal/Admin   | Actualizar estado                  |
+| POST   | /api/reportes/:id/asignar         | Coordinador       | Asignar o reasignar cuadrilla      |
+| POST   | /api/reportes/:id/descartar       | Coordinador       | Descartar (con motivo)             |
+| POST   | /api/reportes/:id/iniciar         | Cuadrilla         | Iniciar la atención                |
+| POST   | /api/reportes/:id/resolver        | Cuadrilla         | Resolver (con 1 a 5 fotos)         |
+| PUT    | /api/admin/municipalidades/:id/estado | Administrador | Activar o desactivar municipalidad |
 
 ---
 
@@ -182,3 +199,27 @@ Todos usan la contraseña: **password123**
 - El frontend usa un *proxy* de Vite: todas las llamadas a `/api` se redirigen automáticamente al backend en el puerto 3000, así que no hay problemas de CORS durante el desarrollo.
 - Las contraseñas se almacenan cifradas con bcrypt; nunca en texto plano.
 - El token JWT se guarda en `localStorage` y se envía automáticamente en cada petición autenticada.
+
+---
+
+## Datos geográficos
+
+Los límites municipales de `database/05_limites_municipales.sql` provienen de
+**geoBoundaries** (https://www.geoboundaries.org/), conjunto *gbOpen* de Guatemala, nivel
+**ADM2** (municipios), release `9469f09`, año representado 2021. El dato original es de
+CONRED y OCHA, publicado en data.humdata.org.
+
+- **Licencia:** Creative Commons Attribution 3.0 IGO (CC BY 3.0 IGO). Se permite su uso,
+  incluso comercial, citando la fuente.
+- **Cita:** Runfola, D. et al. (2020) *geoBoundaries: A global database of political
+  administrative boundaries.* PLoS ONE 15(4): e0231866.
+- **Selección:** los 17 municipios ADM2 cuyo punto interior cae dentro del departamento de
+  Guatemala (ADM1 del mismo conjunto). Dos nombres se ajustaron al nombre oficial:
+  "Petapa" → San Miguel Petapa y "San Raimundo" → San Raymundo.
+- **Precisión:** coordenadas redondeadas a 7 decimales (~1 cm). Son límites de referencia
+  para asignar reportes, no límites legales oficiales.
+
+Una municipalidad **activa** es la que adoptó la plataforma: los reportes cuya ubicación cae
+dentro de su límite se le asignan automáticamente. El administrador la activa o desactiva
+desde *Administración → Catálogos → Municipalidades*. Si un punto no cae en ninguna
+municipalidad activa, el reporte no se puede registrar.
