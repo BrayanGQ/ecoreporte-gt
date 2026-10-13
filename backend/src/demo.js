@@ -1,5 +1,6 @@
 // Carga datos de demostración realistas y coherentes con el flujo del sistema.
 // Uso (desde backend/):  npm run demo
+// También lo reutiliza scripts/preparar-bd-pruebas.js (exporta cargarDatosDemo).
 //
 // Requiere haber cargado database/01 a 05 y corrido `npm run seed`.
 // Se puede repetir: cada ejecución deja la base en el mismo estado de demostración.
@@ -463,7 +464,7 @@ async function resumen() {
   console.table(usuarios.rows);
 }
 
-(async () => {
+async function main() {
   try {
     const { borrados, fotosReales } = await cargar();
     console.log('Datos de demostración cargados.');
@@ -476,4 +477,9 @@ async function resumen() {
   } finally {
     await pool.end();
   }
-})();
+}
+
+if (require.main === module) main();
+
+// scripts/preparar-bd-pruebas.js reutiliza la carga (no cierra el pool).
+module.exports = { cargarDatosDemo: cargar, resumen };

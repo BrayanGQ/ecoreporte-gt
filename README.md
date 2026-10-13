@@ -29,8 +29,12 @@ ecoreporte/
 │   │   ├── routes/index.js     Definición de rutas de la API
 │   │   ├── seed.js             Genera contraseñas de los usuarios demo
 │   │   ├── demo.js             Carga los datos de demostración (npm run demo)
+│   │   ├── app.js              App de Express (la usan el servidor y las pruebas)
 │   │   └── index.js            Punto de entrada del servidor
+│   ├── scripts/                Preparación de la base de pruebas (npm run test:bd)
+│   ├── tests/                  Pruebas de integración (npm test)
 │   └── package.json
+├── docs/PRUEBAS.md             Casos y resultados de las pruebas
 └── frontend/
     ├── src/
     │   ├── views/              Pantallas (Reportar, Mapa, Consultar, etc.)
@@ -246,6 +250,21 @@ ciudadanos, por el portal ciudadano (`/portal/login`).
 | POST   | /api/reportes/:id/iniciar         | Cuadrilla         | Iniciar la atención                |
 | POST   | /api/reportes/:id/resolver        | Cuadrilla         | Resolver (con 1 a 5 fotos)         |
 | PUT    | /api/admin/municipalidades/:id/estado | Administrador | Activar o desactivar municipalidad |
+
+---
+
+## Pruebas
+
+El backend tiene 35 pruebas de integración automatizadas (Jest + Supertest) que corren contra una
+base de datos aparte, `ecoreporte_test`, sin tocar los datos de la aplicación. Desde `backend/`:
+
+```bash
+cp .env.test.example .env.test   # una sola vez: completá DB_PASSWORD
+npm run test:bd                  # crea y carga la base de pruebas
+npm test                         # corre las pruebas
+```
+
+Casos, resultados y defectos: [docs/PRUEBAS.md](docs/PRUEBAS.md).
 
 ---
 
