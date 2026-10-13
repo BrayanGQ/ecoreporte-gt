@@ -28,6 +28,7 @@ ecoreporte/
 │   │   ├── controllers/        Lógica de negocio
 │   │   ├── routes/index.js     Definición de rutas de la API
 │   │   ├── seed.js             Genera contraseñas de los usuarios demo
+│   │   ├── demo.js             Carga los datos de demostración (npm run demo)
 │   │   └── index.js            Punto de entrada del servidor
 │   └── package.json
 └── frontend/
@@ -143,16 +144,70 @@ Abrí ese enlace en el navegador.
 
 ---
 
+## Datos de demostración
+
+Para presentar el sistema con datos realistas, después de los pasos 1 y 2 ejecutá (desde `backend/`):
+
+```bash
+npm run demo
+```
+
+El script `backend/src/demo.js`:
+
+- **Borra todos los reportes**, evidencias, historial y notificaciones (y reinicia la numeración:
+  los códigos vuelven a empezar en `ER-AAAA-0001`). También borra los usuarios que no sean los
+  demo base ni los de la demostración.
+- Conserva los catálogos, los límites municipales y los usuarios demo base.
+- Deja **activas** solo las municipalidades de **Guatemala, Mixco y Villa Nueva**.
+- Crea un coordinador y dos encargados de cuadrilla por municipalidad, y 5 ciudadanos.
+- Carga **28 reportes** entre el 1 de septiembre y la fecha en que se ejecuta, dentro del límite
+  de su municipio (verificado con `ST_Contains`), con estados variados que siguen el flujo real:
+  historial completo, notificaciones para los ciudadanos registrados (las de los últimos 10 días
+  quedan sin leer) y evidencia fotográfica. Todo reporte resuelto tiene fotos de la limpieza.
+- Se puede volver a ejecutar las veces que haga falta: siempre deja el mismo estado de demostración.
+
+**Fotos:** si existe la carpeta `database/demo_fotos/`, se usan sus imágenes (JPG, PNG o WebP):
+las que empiezan con `antes_` como evidencia del ciudadano y las que empiezan con `despues_`
+como evidencia de la limpieza. Si no existe, se generan imágenes de muestra.
+
+> ⚠️ No lo ejecutes sobre una base con datos reales: reemplaza todos los reportes.
+
+---
+
 ## Usuarios de demostración
 
 Todos usan la contraseña: **password123**
 
-| Rol                | Correo                     | Acceso                          |
-|--------------------|----------------------------|---------------------------------|
-| Administrador      | admin@ecoreporte.gt        | Configuración general           |
-| Personal municipal | municipal@ecoreporte.gt    | Coordinador: asigna y descarta  |
-| Encargado cuadrilla| cuadrilla@ecoreporte.gt    | Atiende y resuelve lo asignado  |
-| Ciudadano          | ciudadano@ecoreporte.gt    | Reportar y consultar            |
+**Usuarios base** (se crean con los scripts 02 y 04 y `npm run seed`):
+
+| Rol                  | Correo                  | Municipalidad | Acceso                           |
+|----------------------|-------------------------|---------------|----------------------------------|
+| Administrador        | admin@ecoreporte.gt     | Todas         | Usuarios, catálogos y estadísticas globales |
+| Coordinador          | municipal@ecoreporte.gt | Guatemala     | Asigna, reasigna y descarta      |
+| Encargado cuadrilla  | cuadrilla@ecoreporte.gt | Guatemala     | Atiende y resuelve lo asignado   |
+| Ciudadano            | ciudadano@ecoreporte.gt | —             | Reportar y consultar             |
+
+**Usuarios de la demostración** (`npm run demo`):
+
+| Rol                 | Nombre                   | Correo                         | Municipalidad |
+|---------------------|--------------------------|--------------------------------|---------------|
+| Coordinador         | Ana Lucía Morales        | ana.morales@ecoreporte.gt      | Guatemala     |
+| Encargado cuadrilla | Carlos Enrique Pérez     | carlos.perez@ecoreporte.gt     | Guatemala     |
+| Encargado cuadrilla | José Luis Hernández      | jose.hernandez@ecoreporte.gt   | Guatemala     |
+| Coordinador         | Mario Roberto Castillo   | mario.castillo@ecoreporte.gt   | Mixco         |
+| Encargado cuadrilla | Luis Fernando Ramírez    | luis.ramirez@ecoreporte.gt     | Mixco         |
+| Encargado cuadrilla | Edgar Antonio López      | edgar.lopez@ecoreporte.gt      | Mixco         |
+| Coordinador         | Claudia Patricia Gómez   | claudia.gomez@ecoreporte.gt    | Villa Nueva   |
+| Encargado cuadrilla | Byron Alexander Juárez   | byron.juarez@ecoreporte.gt     | Villa Nueva   |
+| Encargado cuadrilla | Henry Estuardo Pineda    | henry.pineda@ecoreporte.gt     | Villa Nueva   |
+| Ciudadano           | María José García        | maria.garcia@ecoreporte.gt     | —             |
+| Ciudadano           | Juan Pablo Rodríguez     | juan.rodriguez@ecoreporte.gt   | —             |
+| Ciudadano           | Sofía Alejandra Méndez   | sofia.mendez@ecoreporte.gt     | —             |
+| Ciudadano           | Diego Andrés Orellana    | diego.orellana@ecoreporte.gt   | —             |
+| Ciudadano           | Lucía Fernanda Cifuentes | lucia.cifuentes@ecoreporte.gt  | —             |
+
+Los coordinadores y encargados entran por el portal municipal (`/municipal/login`); los
+ciudadanos, por el portal ciudadano (`/portal/login`).
 
 ---
 
