@@ -66,7 +66,7 @@ Requisitos: PostgreSQL con PostGIS y las dependencias del backend instaladas (`n
 
 ## Casos de prueba
 
-Ejecución del 13/10/2026 sobre `ecoreporte_test`.
+Ejecución del 13/10/2026 sobre `ecoreporte_test` (CP-36 y CP-37 agregados tras la corrección de D-01).
 
 | ID | Módulo | Descripción | Resultado esperado | Resultado obtenido |
 |---|---|---|---|---|
@@ -105,26 +105,25 @@ Ejecución del 13/10/2026 sobre `ecoreporte_test`.
 | CP-33 | Administración | El admin crea y edita un tipo de incidencia | Creación 201; edición 200; cambios guardados y visibles en el catálogo público | Aprobado |
 | CP-34 | Administración | Desactivar Mixco y reportar en su zona; reactivarla y reportar de nuevo | Inactiva: 400 de zona no cubierta. Activa: 201 asignado a Mixco | Aprobado |
 | CP-35 | Administración | Coordinador, cuadrilla y ciudadano acceden a rutas `/api/admin` | 403 en todas las rutas probadas; Mixco no cambia de estado | Aprobado |
+| CP-36 | Reportes | Reporte sin sesión enviando en el cuerpo el `id_usuario_reporta` de otro usuario | 201; el reporte queda anónimo (`id_usuario_reporta` nulo), no a nombre del otro usuario | Aprobado |
+| CP-37 | Reportes | Reporte con sesión de ciudadano enviando en el cuerpo el id de otro usuario | 201; el reporte y su foto quedan a nombre del ciudadano del token; aparece en sus "Mis reportes" y no en los del otro | Aprobado |
+
+CP-36 y CP-37 se agregaron para el defecto D-01. Antes de la corrección ambos fallaban (el
+reporte quedaba a nombre del id enviado en el cuerpo); después de la corrección pasan.
 
 ## Resumen
 
 | Total de casos | Aprobados | Fallidos |
 |---|---|---|
-| 35 | 35 | 0 |
+| 37 | 37 | 0 |
 
 ## Defectos encontrados y corregidos
 
 | ID | Descripción | Archivo | Corrección |
 |---|---|---|---|
-| — | No se encontraron defectos en el sistema: los 35 casos pasaron en la primera ejecución contra el código existente. | — | — |
+| D-01 | `POST /api/reportes` es público y tomaba `id_usuario_reporta` del cuerpo de la petición: cualquiera podía registrar un reporte a nombre de otro ciudadano (le aparecía en "Mis reportes" y recibía sus notificaciones). El frontend enviaba ese campo desde `localStorage`. | `backend/src/routes/index.js`, `backend/src/controllers/reporteController.js`, `frontend/src/views/Reportar.vue` | La ruta usa `tokenOpcional`. El controlador toma el autor de `req.usuario.id_usuario` si hay un token válido y, si no, deja el reporte anónimo (`null`); se ignora siempre lo que venga en el cuerpo. El frontend ya no envía el campo: el token lo adjunta el interceptor de `api.js`. Cubierto por CP-36 y CP-37. |
 
-Durante la puesta a punto hubo un problema en la configuración de las pruebas, no en el sistema:
-el pool de PostgreSQL se cerraba antes de que cada archivo terminara de limpiar sus datos.
-Se resolvió moviendo la limpieza y el cierre del pool a un único `afterAll` en
+Durante la puesta a punto hubo además un problema en la configuración de las pruebas, no en el
+sistema: el pool de PostgreSQL se cerraba antes de que cada archivo terminara de limpiar sus
+datos. Se resolvió moviendo la limpieza y el cierre del pool a un único `afterAll` en
 `tests/setup/cerrar-pool.js`.
-
-## Observaciones (fuera del alcance de estos casos)
-
-- `POST /api/reportes` es público y toma `id_usuario_reporta` del cuerpo de la petición:
-  cualquiera podría registrar un reporte a nombre de otro ciudadano. Convendría tomarlo del
-  token cuando haya sesión iniciada. Ningún caso lo cubre y el código no se modificó.

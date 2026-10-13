@@ -159,10 +159,9 @@ async function enviar() {
   }
   cargando.value = true;
   try {
-    // Si hay usuario logueado, se asocia el reporte.
-    const usuario = JSON.parse(localStorage.getItem('usuario') || 'null');
+    // Si hay sesión iniciada, el interceptor de api.js envía el token y el backend asocia
+    // el reporte a ese usuario; sin sesión, el reporte queda anónimo.
     const payload = { ...form.value };
-    if (usuario) payload.id_usuario_reporta = usuario.id_usuario;
     payload.evidencias = imagenes.value.map((img) => img.dataUrl);
 
     const { data } = await reporteService.crear(payload);

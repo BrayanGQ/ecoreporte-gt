@@ -255,7 +255,7 @@ ciudadanos, por el portal ciudadano (`/portal/login`).
 
 ## Pruebas
 
-El backend tiene 35 pruebas de integración automatizadas (Jest + Supertest) que corren contra una
+El backend tiene 37 pruebas de integración automatizadas (Jest + Supertest) que corren contra una
 base de datos aparte, `ecoreporte_test`, sin tocar los datos de la aplicación. Desde `backend/`:
 
 ```bash

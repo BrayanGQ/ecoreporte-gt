@@ -22,14 +22,18 @@ function puedeVerReporte(usuario, reporte) {
 
 const SIN_ACCESO = 'No tenés acceso a este reporte.';
 
-// POST /api/reportes — registro de un reporte ciudadano (público, sin autenticación).
+// POST /api/reportes — registro de un reporte ciudadano (público: no exige autenticación).
 // La municipalidad se determina aquí por la ubicación (límites en PostGIS): cualquier
 // id_municipalidad que envíe el cliente se ignora.
+// El autor sale del token (tokenOpcional en la ruta): con sesión, el reporte queda a nombre
+// de ese usuario; sin sesión, es anónimo. Nunca se toma id_usuario_reporta del cuerpo,
+// para que nadie pueda registrar reportes a nombre de otro.
 async function crearReporte(req, res) {
   const {
     id_tipo_incidencia, descripcion,
-    latitud, longitud, id_usuario_reporta, evidencias,
+    latitud, longitud, evidencias,
   } = req.body;
+  const id_usuario_reporta = req.usuario?.id_usuario ?? null;
 
   if (!id_tipo_incidencia || latitud == null || longitud == null) {
     return res.status(400).json({ error: 'Tipo de incidencia y ubicación son obligatorios.' });
@@ -72,7 +76,7 @@ async function crearReporte(req, res) {
           descripcion, latitud, longitud)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id_reporte`,
-      [id_usuario_reporta || null, idMunicipalidad, id_tipo_incidencia,
+      [id_usuario_reporta, idMunicipalidad, id_tipo_incidencia,
        idEstadoRecibido, descripcion || null, coords.lat, coords.lng]
     );
     const idReporte = insert.rows[0].id_reporte;
@@ -95,7 +99,7 @@ async function crearReporte(req, res) {
       await client.query(
         `INSERT INTO evidencia_fotografica (id_reporte, id_usuario, url_imagen, tipo_evidencia, fecha_carga)
          VALUES ($1, $2, $3, 'ciudadana', NOW())`,
-        [idReporte, id_usuario_reporta || null, imagen]
+        [idReporte, id_usuario_reporta, imagen]
       );
     }
 

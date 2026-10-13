@@ -37,7 +37,8 @@ router.get('/catalogos/limites-activos', catalogo.limitesActivos);
 
 // ---------- Reportes ----------
 // Registro ciudadano y consulta pública: no requieren autenticación.
-router.post('/reportes', reportes.crearReporte);
+// Con sesión, el reporte queda a nombre del usuario del token; sin sesión, es anónimo.
+router.post('/reportes', tokenOpcional, reportes.crearReporte);
 // Listado público (mapa); con token, se limita al alcance del rol (ver listarReportes).
 router.get('/reportes', tokenOpcional, reportes.listarReportes);
 router.get('/reportes/consulta/:codigo', reportes.consultarPorCodigo);

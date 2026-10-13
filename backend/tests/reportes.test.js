@@ -1,6 +1,6 @@
 // Pruebas de integración: registro ciudadano de reportes y consulta pública por código.
 const {
-  api, puntos, crearReporte, uno, idMunicipalidad, FOTO, SIN_COBERTURA,
+  api, bearer, puntos, crearReporte, uno, idUsuario, idMunicipalidad, USUARIOS, MARCA, FOTO, SIN_COBERTURA,
 } = require('./helpers');
 
 let P; // puntos de prueba (PostGIS)
@@ -90,5 +90,46 @@ describe('Consulta pública por código', () => {
 
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('No se encontró un reporte con ese código.');
+  });
+});
+
+describe('Autor del reporte (D-01)', () => {
+  const autorDe = async (idReporte) =>
+    (await uno('SELECT id_usuario_reporta FROM reporte WHERE id_reporte = $1', [idReporte])).id_usuario_reporta;
+
+  test('CP-36 Sin sesión, enviar id_usuario_reporta de otro usuario no lo asocia: el reporte queda anónimo', async () => {
+    const idOtro = await idUsuario(USUARIOS.ciudadano);
+    const res = await crearReporte(P.guatemala, { id_usuario_reporta: idOtro, descripcion: 'suplantación sin sesión' });
+
+    expect(res.status).toBe(201);
+    expect(await autorDe(res.body.id_reporte)).toBeNull();
+  });
+
+  test('CP-37 Con sesión de ciudadano, enviar otro id en el cuerpo no cambia el autor: queda el del token', async () => {
+    const idCiudadano = await idUsuario(USUARIOS.ciudadano);
+    const idOtro = await idUsuario('juan.rodriguez@ecoreporte.gt');
+    const res = await api().post('/api/reportes').set(await bearer(USUARIOS.ciudadano)).send({
+      id_tipo_incidencia: 1,
+      latitud: P.guatemala.lat,
+      longitud: P.guatemala.lng,
+      descripcion: `${MARCA} suplantación con sesión`,
+      id_usuario_reporta: idOtro,
+      evidencias: [FOTO],
+    });
+
+    expect(res.status).toBe(201);
+    expect(await autorDe(res.body.id_reporte)).toBe(idCiudadano);
+
+    // La foto del ciudadano también queda a su nombre.
+    const evidencia = await uno(
+      'SELECT id_usuario, tipo_evidencia FROM evidencia_fotografica WHERE id_reporte = $1', [res.body.id_reporte]
+    );
+    expect(evidencia).toEqual({ id_usuario: idCiudadano, tipo_evidencia: 'ciudadana' });
+
+    // Y aparece en "Mis reportes" del ciudadano del token, no en los del otro.
+    const mios = await api().get('/api/reportes/mis-reportes').set(await bearer(USUARIOS.ciudadano));
+    expect(mios.body.map((r) => r.id_reporte)).toContain(res.body.id_reporte);
+    const ajenos = await api().get('/api/reportes/mis-reportes').set(await bearer('juan.rodriguez@ecoreporte.gt'));
+    expect(ajenos.body.map((r) => r.id_reporte)).not.toContain(res.body.id_reporte);
   });
 });
