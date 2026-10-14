@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { authService } from '../services/api';
+import { MENSAJE_SESION_EXPIRADA } from '../utils/sesion';
 
 const route = useRoute();
 const router = useRouter();
@@ -12,6 +13,9 @@ const cargando = ref(false);
 
 // El mismo formulario se usa para el login ciudadano y el municipal.
 const esMunicipal = computed(() => route.meta.portal === 'municipal');
+
+// Llega con ?sesion=expirada cuando el token venció (ver utils/sesion.js y api.js).
+const sesionExpirada = computed(() => route.query.sesion === 'expirada');
 
 async function iniciarSesion() {
   error.value = '';
@@ -36,7 +40,9 @@ async function iniciarSesion() {
 </script>
 
 <template>
-  <div class="container-narrow">
+  <!-- El login municipal no tiene layout: es la región principal. El ciudadano ya está dentro
+       del <main> del portal ciudadano, así que ahí va un <div> (no puede haber dos <main>). -->
+  <component :is="esMunicipal ? 'main' : 'div'" class="container-narrow">
     <div class="card">
       <h1 class="title">
         <i :class="esMunicipal ? 'bx bx-building' : 'bx bx-user'"></i>
@@ -44,6 +50,9 @@ async function iniciarSesion() {
       </h1>
       <p class="sub">Ingresá tus credenciales para acceder.</p>
 
+      <div v-if="sesionExpirada && !error" class="alert aviso">
+        <i class="bx bx-time-five"></i> {{ MENSAJE_SESION_EXPIRADA }}
+      </div>
       <div v-if="error" class="alert error"><i class="bx bx-error-circle"></i> {{ error }}</div>
 
       <label>Correo electrónico</label>
@@ -66,7 +75,7 @@ async function iniciarSesion() {
         <router-link to="/"><i class="bx bx-arrow-back"></i> Volver al inicio</router-link>
       </div>
     </div>
-  </div>
+  </component>
 </template>
 
 <style scoped>

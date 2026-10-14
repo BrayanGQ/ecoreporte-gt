@@ -1,0 +1,5 @@
+# EcoReporte GT
+# Se permite indexar todo el sitio. Los paneles municipales requieren sesión, así que los
+# buscadores solo ven su pantalla de acceso.
+User-agent: *
+Allow: /

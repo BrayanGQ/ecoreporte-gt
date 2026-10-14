@@ -238,7 +238,7 @@ onMounted(async () => {
     <h1 class="title">Estadísticas</h1>
     <p class="sub">{{ esAdmin ? 'Estadísticas globales de la plataforma. Podés filtrar por municipalidad.' : 'Estadísticas de los reportes de tu municipalidad.' }}</p>
 
-    <!-- Filtro por rango de fechas -->
+    <!-- Filtros: municipalidad (solo administrador) y rango de fechas -->
     <form class="card filter-card" @submit.prevent="aplicarFiltro">
       <div class="filter-head">
         <i class="bx bx-calendar"></i>

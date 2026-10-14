@@ -114,7 +114,10 @@ onUnmounted(() => document.removeEventListener('click', cerrarSiEsExterno));
       <router-link to="/" class="volver"><i class="bx bx-home-alt"></i> Volver al inicio</router-link>
     </div>
   </nav>
-  <router-view />
+  <!-- Región principal del portal ciudadano (accesibilidad: landmark <main>). -->
+  <main>
+    <router-view />
+  </main>
 </template>
 
 <style scoped>

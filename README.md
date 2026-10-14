@@ -1,79 +1,79 @@
 # EcoReporte GT
 
+**Versión 1.0.0**
+
 Plataforma digital para la detección, registro y seguimiento de vertederos clandestinos en zonas urbanas de municipios del departamento de Guatemala.
 
 Proyecto de graduación — Ingeniería en Sistemas, Universidad Mariano Gálvez de Guatemala.
 
 ## Tecnologías
 
-- **Frontend:** Vue.js 3 + Vite + Leaflet (OpenStreetMap)
+- **Frontend:** Vue.js 3 + Vite + Vue Router + Leaflet (OpenStreetMap) + Chart.js
 - **Backend:** Node.js + Express
-- **Base de datos:** PostgreSQL + PostGIS
-- **Autenticación:** JWT (JSON Web Tokens) con control de acceso por rol
+- **Base de datos:** PostgreSQL + PostGIS (detección de la municipalidad por ubicación)
+- **Autenticación:** JWT (JSON Web Tokens) con control de acceso por rol; contraseñas cifradas con bcrypt
+- **Pruebas:** Jest + Supertest (pruebas de integración del backend)
 
 ## Estructura del proyecto
 
 ```
 ecoreporte/
 ├── database/
-│   ├── 01_esquema.sql              Estructura de las 9 tablas + índices
-│   ├── 02_datos_iniciales.sql      Catálogos y usuarios de demostración
+│   ├── 01_esquema.sql              Estructura de las 9 tablas + índices (activa PostGIS)
+│   ├── 02_datos_iniciales.sql      Catálogos y usuarios demo base
 │   ├── 03_evidencia_base64.sql     Evidencias fotográficas en base64
 │   ├── 04_rol_cuadrilla.sql        Rol encargado_cuadrilla + usuario demo
-│   └── 05_limites_municipales.sql  Límites de los 17 municipios (PostGIS)
+│   ├── 05_limites_municipales.sql  Límites de los 17 municipios (PostGIS)
+│   └── demo_fotos/                 Fotos de los datos de demostración (ver CREDITOS.md)
 ├── backend/
 │   ├── src/
+│   │   ├── app.js              App de Express (la usan el servidor y las pruebas)
+│   │   ├── index.js            Punto de entrada del servidor
 │   │   ├── config/db.js        Conexión a PostgreSQL
 │   │   ├── middleware/auth.js  Verificación de JWT y roles
 │   │   ├── controllers/        Lógica de negocio
-│   │   ├── routes/index.js     Definición de rutas de la API
-│   │   ├── seed.js             Genera contraseñas de los usuarios demo
-│   │   ├── demo.js             Carga los datos de demostración (npm run demo)
-│   │   ├── app.js              App de Express (la usan el servidor y las pruebas)
-│   │   └── index.js            Punto de entrada del servidor
+│   │   ├── routes/index.js     Rutas de la API
+│   │   ├── utils/ubicacion.js  Municipalidad según la ubicación (PostGIS)
+│   │   ├── seed.js             Contraseñas de los usuarios demo base (npm run seed)
+│   │   └── demo.js             Datos de demostración (npm run demo)
 │   ├── scripts/                Preparación de la base de pruebas (npm run test:bd)
 │   ├── tests/                  Pruebas de integración (npm test)
+│   ├── .env.example            Plantilla de variables de entorno
 │   └── package.json
-├── docs/PRUEBAS.md             Casos y resultados de las pruebas
-└── frontend/
-    ├── src/
-    │   ├── views/              Pantallas (Reportar, Mapa, Consultar, etc.)
-    │   ├── services/api.js     Llamadas a la API
-    │   ├── router/index.js     Rutas de navegación
-    │   └── App.vue
-    └── package.json
+├── frontend/
+│   ├── src/
+│   │   ├── views/              Pantallas (Reportar, Mapa, Panel, Estadísticas, etc.)
+│   │   ├── layouts/            Portal ciudadano y portal municipal
+│   │   ├── components/         Componentes reutilizables (galería de evidencias)
+│   │   ├── services/api.js     Llamadas a la API (axios + manejo de sesión)
+│   │   ├── utils/              Sesión, fotos y enlaces a mapas
+│   │   └── router/index.js     Rutas de navegación y permisos por rol
+│   └── package.json
+└── docs/PRUEBAS.md             Casos y resultados de las pruebas
 ```
 
 ---
 
 ## Requisitos previos
 
-Antes de empezar, instalá en tu máquina:
+1. **Node.js 18 o superior** — https://nodejs.org
+2. **PostgreSQL 15 o superior** — https://www.postgresql.org/download/
+3. **PostGIS 3** (extensión geográfica de PostgreSQL). En Windows se instala con el
+   *Stack Builder* que viene con PostgreSQL (categoría *Spatial Extensions*).
 
-1. **Node.js** (versión 18 o superior) — https://nodejs.org
-2. **PostgreSQL** (versión 15 o superior) — https://www.postgresql.org/download/
-3. **PostGIS** (extensión de PostgreSQL para datos geográficos) — normalmente se instala junto con PostgreSQL mediante el "Stack Builder" en Windows.
+> En Windows, `psql` suele no estar en el `PATH`. Podés usar la ruta completa, por ejemplo
+> `"C:\Program Files\PostgreSQL\17\bin\psql.exe"`, o agregar esa carpeta al `PATH`.
 
 ---
 
-## Paso 1 — Crear la base de datos
+## Instalación
 
-Abrí una terminal y entrá a PostgreSQL con el usuario `postgres`:
+### Paso 1 — Crear la base de datos
 
-```bash
-psql -U postgres
-```
-
-Creá la base de datos y salí:
-
-```sql
-CREATE DATABASE ecoreporte;
-\q
-```
-
-Cargá el esquema y los datos iniciales (desde la carpeta del proyecto):
+Desde la carpeta del proyecto, creá la base y cargá los scripts **en orden**:
 
 ```bash
+psql -U postgres -c "CREATE DATABASE ecoreporte"
 psql -U postgres -d ecoreporte -f database/01_esquema.sql
 psql -U postgres -d ecoreporte -f database/02_datos_iniciales.sql
 psql -U postgres -d ecoreporte -f database/03_evidencia_base64.sql
@@ -81,38 +81,42 @@ psql -U postgres -d ecoreporte -f database/04_rol_cuadrilla.sql
 psql -U postgres -d ecoreporte -f database/05_limites_municipales.sql
 ```
 
-> Los scripts 04 y 05 se pueden volver a ejecutar sin duplicar datos. El 05 registra los
-> 17 municipios del departamento de Guatemala con su límite territorial; solo la
-> Municipalidad de Guatemala queda activa (ver "Datos geográficos" más abajo).
+| Script | Qué hace |
+|---|---|
+| `01_esquema.sql` | Activa PostGIS y crea las 9 tablas con sus índices. |
+| `02_datos_iniciales.sql` | Roles, estados, tipos de incidencia, la Municipalidad de Guatemala y los usuarios demo base. |
+| `03_evidencia_base64.sql` | Permite guardar las fotos de evidencia en base64. |
+| `04_rol_cuadrilla.sql` | Agrega el rol `encargado_cuadrilla` y su usuario demo. |
+| `05_limites_municipales.sql` | Agrega los límites de los 17 municipios del departamento de Guatemala. Solo la Municipalidad de Guatemala queda activa. |
 
-> Si PostGIS no está habilitado, el primer script mostrará un error en la línea `CREATE EXTENSION postgis`. En ese caso, instalá PostGIS y volvé a ejecutarlo.
+> Los scripts 04 y 05 se pueden volver a ejecutar sin duplicar datos. Si PostGIS no está
+> instalado, el script 01 falla en `CREATE EXTENSION postgis`: instalalo y volvé a ejecutarlo.
 
----
-
-## Paso 2 — Configurar y arrancar el backend
+### Paso 2 — Configurar y arrancar el backend
 
 ```bash
 cd backend
 npm install
-```
-
-Copiá el archivo de configuración de ejemplo y ajustá los valores:
-
-```bash
 cp .env.example .env
 ```
 
-Abrí `.env` y verificá que `DB_PASSWORD` coincida con la contraseña de tu usuario `postgres`.
+Editá `backend/.env`:
 
-Generá las contraseñas de los usuarios de demostración:
+| Variable | Descripción | Valor por defecto |
+|---|---|---|
+| `DB_HOST` | Servidor de PostgreSQL | `localhost` |
+| `DB_PORT` | Puerto de PostgreSQL | `5432` |
+| `DB_NAME` | Nombre de la base | `ecoreporte` |
+| `DB_USER` | Usuario de PostgreSQL | `postgres` |
+| `DB_PASSWORD` | Contraseña de ese usuario | — (obligatoria) |
+| `PORT` | Puerto de la API | `3000` |
+| `JWT_SECRET` | Clave para firmar los tokens: usá una cadena larga y aleatoria | — (obligatoria) |
+| `JWT_EXPIRES_IN` | Duración de la sesión | `8h` |
+
+Asigná las contraseñas de los usuarios demo base y arrancá el servidor:
 
 ```bash
 npm run seed
-```
-
-Arrancá el servidor:
-
-```bash
 npm run dev
 ```
 
@@ -125,11 +129,9 @@ Servidor escuchando en http://localhost:3000
 
 Dejá esta terminal abierta.
 
----
+### Paso 3 — Arrancar el frontend
 
-## Paso 3 — Configurar y arrancar el frontend
-
-Abrí **otra** terminal:
+En **otra** terminal:
 
 ```bash
 cd frontend
@@ -137,22 +139,14 @@ npm install
 npm run dev
 ```
 
-Deberías ver algo como:
+Abrí http://localhost:5173. Vite redirige las llamadas a `/api` al backend en el puerto 3000.
 
-```
-VITE v5  ready
-➜  Local:   http://localhost:5173/
-```
+Para generar la versión de producción: `npm run build` (queda en `frontend/dist/`).
 
-Abrí ese enlace en el navegador.
-
----
-
-## Datos de demostración
-
-Para presentar el sistema con datos realistas, después de los pasos 1 y 2 ejecutá (desde `backend/`):
+### Paso 4 (opcional) — Cargar los datos de demostración
 
 ```bash
+cd backend
 npm run demo
 ```
 
@@ -170,9 +164,10 @@ El script `backend/src/demo.js`:
   quedan sin leer) y evidencia fotográfica. Todo reporte resuelto tiene fotos de la limpieza.
 - Se puede volver a ejecutar las veces que haga falta: siempre deja el mismo estado de demostración.
 
-**Fotos:** si existe la carpeta `database/demo_fotos/`, se usan sus imágenes (JPG, PNG o WebP):
-las que empiezan con `antes_` como evidencia del ciudadano y las que empiezan con `despues_`
-como evidencia de la limpieza. Si no existe, se generan imágenes de muestra.
+**Fotos:** usa las imágenes de `database/demo_fotos/` (JPG, PNG o WebP): las que empiezan con
+`antes_` como evidencia del ciudadano y las que empiezan con `despues_` como evidencia de la
+limpieza. Si la carpeta no existe, genera imágenes de muestra. Las fotos incluidas son de Pexels
+(ver `database/demo_fotos/CREDITOS.md`).
 
 > ⚠️ No lo ejecutes sobre una base con datos reales: reemplaza todos los reportes.
 
@@ -180,16 +175,17 @@ como evidencia de la limpieza. Si no existe, se generan imágenes de muestra.
 
 ## Usuarios de demostración
 
-Todos usan la contraseña: **password123**
+Todos usan la contraseña **password123**. El ciudadano entra por el portal ciudadano
+(`/portal/login`); el resto, por el portal municipal (`/municipal/login`).
 
-**Usuarios base** (se crean con los scripts 02 y 04 y `npm run seed`):
+**Usuarios base** (scripts 02 y 04 + `npm run seed`):
 
-| Rol                  | Correo                  | Municipalidad | Acceso                           |
-|----------------------|-------------------------|---------------|----------------------------------|
-| Administrador        | admin@ecoreporte.gt     | Todas         | Usuarios, catálogos y estadísticas globales |
-| Coordinador          | municipal@ecoreporte.gt | Guatemala     | Asigna, reasigna y descarta      |
-| Encargado cuadrilla  | cuadrilla@ecoreporte.gt | Guatemala     | Atiende y resuelve lo asignado   |
-| Ciudadano            | ciudadano@ecoreporte.gt | —             | Reportar y consultar             |
+| Rol                 | Correo                  | Municipalidad |
+|---------------------|-------------------------|---------------|
+| Administrador       | admin@ecoreporte.gt     | Todas         |
+| Coordinador         | municipal@ecoreporte.gt | Guatemala     |
+| Encargado cuadrilla | cuadrilla@ecoreporte.gt | Guatemala     |
+| Ciudadano           | ciudadano@ecoreporte.gt | —             |
 
 **Usuarios de la demostración** (`npm run demo`):
 
@@ -210,46 +206,88 @@ Todos usan la contraseña: **password123**
 | Ciudadano           | Diego Andrés Orellana    | diego.orellana@ecoreporte.gt   | —             |
 | Ciudadano           | Lucía Fernanda Cifuentes | lucia.cifuentes@ecoreporte.gt  | —             |
 
-Los coordinadores y encargados entran por el portal municipal (`/municipal/login`); los
-ciudadanos, por el portal ciudadano (`/portal/login`).
+---
+
+## Funcionalidades por rol
+
+**Cualquier persona (sin cuenta)**
+- Reportar un vertedero desde el mapa, con descripción y hasta 5 fotos. La municipalidad que lo
+  atenderá se detecta automáticamente por la ubicación (PostGIS); si la zona no está cubierta,
+  se avisa y no se puede enviar.
+- Consultar el estado e historial de un reporte con su código de seguimiento.
+- Ver el mapa público de reportes, con filtros por estado y tipo.
+
+**Ciudadano registrado**
+- Todo lo anterior; sus reportes quedan asociados a su cuenta.
+- *Mis reportes*: estado, historial y, cuando el reporte se resuelve, las fotos de la limpieza.
+- Notificaciones de cada cambio de estado de sus reportes.
+- Registro de cuenta y recuperación de contraseña.
+
+**Coordinador (personal municipal)** — solo reportes de su municipalidad
+- Lista de reportes y detalle con la evidencia del ciudadano ("antes") y de la limpieza ("después").
+- Asignar un reporte recibido a un encargado de cuadrilla, reasignarlo mientras siga asignado, o
+  descartarlo con un motivo obligatorio.
+- Estadísticas de su municipalidad: tarjetas de resumen, gráfica por estado y por tipo, filtro por fechas.
+
+**Encargado de cuadrilla** — solo reportes asignados a él
+- Panel pensado para el celular: pendientes, en atención y resueltos, con enlace "Cómo llegar".
+- Iniciar la atención y marcar el reporte como resuelto con 1 a 5 fotos de la limpieza
+  (obligatorias), tomadas con la cámara del celular.
+
+**Administrador**
+- Gestión de usuarios: crear coordinadores, encargados de cuadrilla y administradores, y
+  activar o desactivar cuentas.
+- Catálogos: tipos de incidencia y municipalidades; activar una municipalidad significa que
+  adoptó la plataforma y empieza a recibir los reportes de su territorio.
+- Estadísticas globales, con filtro por municipalidad. Ve todos los reportes en solo lectura:
+  no interviene en su atención.
+
+**Flujo de un reporte:** `recibido` → `asignado` (coordinador) → `en_atencion` (cuadrilla) →
+`resuelto` (cuadrilla, con fotos). Desde `recibido`, el coordinador también puede pasarlo a
+`descartado`. El backend valida cada transición y el rol de quien la hace; cada cambio queda en
+el historial y se notifica al ciudadano.
 
 ---
 
-## Funcionalidades implementadas
+## Endpoints de la API
 
-- **Registro ciudadano de reportes** con geolocalización sobre el mapa (Leaflet + OpenStreetMap), sin necesidad de crear cuenta. La municipalidad que atiende el reporte se detecta automáticamente según la ubicación (PostGIS).
-- **Mapa de reportes** con marcadores por color según el estado y filtros por estado y tipo.
-- **Consulta pública** del estado de un reporte mediante su código de seguimiento.
-- **Registro e inicio de sesión** de usuarios con contraseña cifrada (bcrypt).
-- **Recuperación de contraseña** (flujo de dos pasos).
-- **Panel municipal** con el listado de reportes y su gestión.
-- **Detalle del reporte** con actualización de estado e historial de seguimiento.
-- **Notificaciones** automáticas al ciudadano registrado cuando cambia el estado de su reporte.
-- **Control de acceso por rol** mediante JWT.
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| POST | `/api/auth/registro` | Público | Crear cuenta de ciudadano |
+| POST | `/api/auth/login` | Público | Iniciar sesión |
+| POST | `/api/auth/recuperar` | Público | Solicitar recuperación de contraseña |
+| POST | `/api/auth/restablecer` | Público | Restablecer contraseña |
+| GET | `/api/catalogos/tipos` | Público | Tipos de incidencia |
+| GET | `/api/catalogos/estados` | Público | Estados del reporte |
+| GET | `/api/catalogos/municipalidades` | Público | Municipalidades activas |
+| GET | `/api/catalogos/municipalidad-por-ubicacion?lat=&lng=` | Público | Municipalidad que cubre un punto |
+| GET | `/api/catalogos/limites-activos` | Público | Contornos de las municipalidades activas (GeoJSON) |
+| POST | `/api/reportes` | Público (con sesión, queda a nombre del usuario) | Registrar un reporte |
+| GET | `/api/reportes` | Público (con sesión, filtrado por rol) | Listar reportes |
+| GET | `/api/reportes/consulta/:codigo` | Público | Consultar por código de seguimiento |
+| GET | `/api/reportes/mis-reportes` | Autenticado | Reportes que registró el usuario |
+| GET | `/api/reportes/:id/detalle` | Coordinador, cuadrilla, admin | Detalle completo |
+| GET | `/api/reportes/:id/asignables` | Coordinador, admin | Encargados de cuadrilla asignables |
+| POST | `/api/reportes/:id/asignar` | Coordinador | Asignar o reasignar cuadrilla |
+| POST | `/api/reportes/:id/descartar` | Coordinador | Descartar (con motivo) |
+| POST | `/api/reportes/:id/iniciar` | Cuadrilla | Iniciar la atención |
+| POST | `/api/reportes/:id/resolver` | Cuadrilla | Resolver (con 1 a 5 fotos) |
+| GET | `/api/notificaciones` | Autenticado | Notificaciones propias |
+| PUT | `/api/notificaciones/:id/leida` | Autenticado | Marcar como leída |
+| GET | `/api/estadisticas/resumen` | Coordinador, admin | Totales por estado |
+| GET | `/api/estadisticas/por-estado` | Coordinador, admin | Conteo por estado |
+| GET | `/api/estadisticas/por-tipo` | Coordinador, admin | Conteo por tipo de incidencia |
+| GET/POST | `/api/admin/usuarios` | Administrador | Listar y crear cuentas |
+| PUT | `/api/admin/usuarios/:id/estado` | Administrador | Activar o desactivar una cuenta |
+| GET | `/api/admin/roles` | Administrador | Roles asignables |
+| GET/POST | `/api/admin/tipos-incidencia` | Administrador | Listar y crear tipos |
+| PUT | `/api/admin/tipos-incidencia/:id` | Administrador | Editar un tipo |
+| GET/POST | `/api/admin/municipalidades` | Administrador | Listar y crear municipalidades |
+| PUT | `/api/admin/municipalidades/:id` | Administrador | Editar una municipalidad |
+| PUT | `/api/admin/municipalidades/:id/estado` | Administrador | Activar o desactivar una municipalidad |
 
----
-
-## Endpoints principales de la API
-
-| Método | Ruta                              | Acceso            | Descripción                        |
-|--------|-----------------------------------|-------------------|------------------------------------|
-| POST   | /api/auth/registro                | Público           | Crear cuenta de ciudadano          |
-| POST   | /api/auth/login                   | Público           | Iniciar sesión                     |
-| POST   | /api/auth/recuperar               | Público           | Solicitar recuperación             |
-| POST   | /api/auth/restablecer             | Público           | Restablecer contraseña             |
-| GET    | /api/catalogos/tipos              | Público           | Tipos de incidencia                |
-| GET    | /api/catalogos/municipalidades    | Público           | Municipalidades activas            |
-| GET    | /api/catalogos/municipalidad-por-ubicacion?lat=&lng= | Público | Municipalidad que cubre un punto |
-| GET    | /api/catalogos/limites-activos    | Público           | Contornos de las municipalidades activas (GeoJSON) |
-| POST   | /api/reportes                     | Público           | Registrar un reporte               |
-| GET    | /api/reportes                     | Público           | Listar reportes (con filtros)      |
-| GET    | /api/reportes/consulta/:codigo    | Público           | Consultar por código               |
-| GET    | /api/reportes/:id/detalle         | Autenticado       | Detalle completo del reporte       |
-| POST   | /api/reportes/:id/asignar         | Coordinador       | Asignar o reasignar cuadrilla      |
-| POST   | /api/reportes/:id/descartar       | Coordinador       | Descartar (con motivo)             |
-| POST   | /api/reportes/:id/iniciar         | Cuadrilla         | Iniciar la atención                |
-| POST   | /api/reportes/:id/resolver        | Cuadrilla         | Resolver (con 1 a 5 fotos)         |
-| PUT    | /api/admin/municipalidades/:id/estado | Administrador | Activar o desactivar municipalidad |
+Las estadísticas aceptan `fecha_inicio` y `fecha_fin` (`YYYY-MM-DD`); el administrador puede
+filtrar además por `id_municipalidad`.
 
 ---
 
@@ -270,9 +308,15 @@ Casos, resultados y defectos: [docs/PRUEBAS.md](docs/PRUEBAS.md).
 
 ## Notas para el desarrollo
 
-- El frontend usa un *proxy* de Vite: todas las llamadas a `/api` se redirigen automáticamente al backend en el puerto 3000, así que no hay problemas de CORS durante el desarrollo.
+- El frontend usa un *proxy* de Vite: las llamadas a `/api` se redirigen al backend en el puerto
+  3000, así que no hay problemas de CORS durante el desarrollo.
 - Las contraseñas se almacenan cifradas con bcrypt; nunca en texto plano.
-- El token JWT se guarda en `localStorage` y se envía automáticamente en cada petición autenticada.
+- **Sesión:** el token JWT se guarda en `localStorage` y se envía en cada petición. Vence a las
+  8 horas (`JWT_EXPIRES_IN`). Si venció, el frontend borra la sesión; si una ruta protegida
+  responde 401, lleva al usuario al login de su portal con el aviso "Tu sesión expiró, iniciá
+  sesión de nuevo.". Las rutas públicas siguen funcionando sin sesión.
+- **Recuperación de contraseña:** en esta versión no se envían correos; el backend devuelve el
+  token de recuperación en la respuesta para poder completar el flujo en desarrollo.
 
 ---
 

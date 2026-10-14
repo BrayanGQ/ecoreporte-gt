@@ -39,7 +39,10 @@ async function cargarReportes() {
     capaMarcadores.clearLayers();
     data.forEach((r) => {
       const color = colores[r.nombre_estado] || '#666';
-      const m = L.marker([r.latitud, r.longitud], { icon: iconoColor(color) });
+      // Nombre accesible del marcador (Leaflet le da role="button"): código, tipo y estado.
+      const etiqueta = `Reporte ${r.codigo_seguimiento}: ${r.nombre_tipo}, estado ${r.nombre_estado.replace('_', ' ')}`;
+      const m = L.marker([r.latitud, r.longitud], { icon: iconoColor(color), title: etiqueta });
+      m.on('add', () => m.getElement()?.setAttribute('aria-label', etiqueta));
       m.bindPopup(
         `<strong>${r.nombre_tipo}</strong><br>${r.descripcion || 'Sin descripción'}<br>` +
         `<span style="color:${color};font-weight:700">${r.nombre_estado}</span><br>` +
@@ -76,7 +79,7 @@ onMounted(async () => {
     <div v-if="error" class="alert error"><i class="bx bx-error-circle"></i> {{ error }}</div>
 
     <div class="filtros">
-      <select v-model="filtros.estado" @change="cargarReportes">
+      <select v-model="filtros.estado" aria-label="Filtrar reportes por estado" @change="cargarReportes">
         <option value="">Estado: Todos</option>
         <option value="recibido">Recibido</option>
         <option value="asignado">Asignado</option>
@@ -84,7 +87,7 @@ onMounted(async () => {
         <option value="resuelto">Resuelto</option>
         <option value="descartado">Descartado</option>
       </select>
-      <select v-model="filtros.tipo" @change="cargarReportes">
+      <select v-model="filtros.tipo" aria-label="Filtrar reportes por tipo de incidencia" @change="cargarReportes">
         <option value="">Tipo: Todos</option>
         <option v-for="t in tipos" :key="t.id_tipo_incidencia" :value="t.id_tipo_incidencia">
           {{ t.nombre_tipo }}

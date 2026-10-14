@@ -127,6 +127,7 @@ textarea { min-height: 90px; resize: vertical; }
 }
 .alert.error { background: #FEF3F2; color: #B42318; border-color: #FECDCA; }
 .alert.ok { background: #EDF6E8; color: #256029; border-color: #CDE7BE; }
+.alert.aviso { background: #FFF6E0; color: #7A5300; border-color: #F5DFA0; }
 
 /* Badges de estado (fondo tenue + texto del color) */
 .badge {

@@ -1,0 +1,101 @@
+{
+  "fecha": "2026-10-14T01:16:54.848Z",
+  "descripcion": "Mapa de reportes en celular: mediciones alternadas entre la versión anterior a las correcciones (reconstruida temporalmente y servida en el puerto 4174) y la versión corregida (puerto 4173), para separar el efecto del código de la variación entre ejecuciones. Mismas condiciones que scripts/lighthouse.mjs, solo la categoría de rendimiento.",
+  "rondas": 5,
+  "antes": {
+    "corridas": [
+      {
+        "ronda": 1,
+        "rendimiento": 76,
+        "fcp_ms": 2663.2021,
+        "lcp_ms": 5514.5146,
+        "tbt_ms": 51,
+        "bytes": 546459
+      },
+      {
+        "ronda": 2,
+        "rendimiento": 80,
+        "fcp_ms": 2504.4882,
+        "lcp_ms": 4617.4283000000005,
+        "tbt_ms": 46,
+        "bytes": 545876
+      },
+      {
+        "ronda": 3,
+        "rendimiento": 78,
+        "fcp_ms": 2502.281,
+        "lcp_ms": 5017.8104,
+        "tbt_ms": 45,
+        "bytes": 545728
+      },
+      {
+        "ronda": 4,
+        "rendimiento": 78,
+        "fcp_ms": 2523.9779,
+        "lcp_ms": 5037.670199999999,
+        "tbt_ms": 64,
+        "bytes": 545136
+      },
+      {
+        "ronda": 5,
+        "rendimiento": 86,
+        "fcp_ms": 2512.9672,
+        "lcp_ms": 3688.4139999999998,
+        "tbt_ms": 54,
+        "bytes": 545145
+      }
+    ],
+    "minimo": 76,
+    "maximo": 86,
+    "mediana": 78,
+    "promedio": 79.6
+  },
+  "despues": {
+    "corridas": [
+      {
+        "ronda": 1,
+        "rendimiento": 77,
+        "fcp_ms": 2506.1718,
+        "lcp_ms": 5203.689550000002,
+        "tbt_ms": 49,
+        "bytes": 545777
+      },
+      {
+        "ronda": 2,
+        "rendimiento": 78,
+        "fcp_ms": 2505.4144,
+        "lcp_ms": 5166.182,
+        "tbt_ms": 49,
+        "bytes": 545939
+      },
+      {
+        "ronda": 3,
+        "rendimiento": 79,
+        "fcp_ms": 2506.2185999999997,
+        "lcp_ms": 4862.9495,
+        "tbt_ms": 49,
+        "bytes": 545935
+      },
+      {
+        "ronda": 4,
+        "rendimiento": 79,
+        "fcp_ms": 2503.3833999999997,
+        "lcp_ms": 4876.1495,
+        "tbt_ms": 47,
+        "bytes": 546531
+      },
+      {
+        "ronda": 5,
+        "rendimiento": 78,
+        "fcp_ms": 2514.9186,
+        "lcp_ms": 5013.336399999999,
+        "tbt_ms": 58,
+        "bytes": 546673
+      }
+    ],
+    "minimo": 77,
+    "maximo": 79,
+    "mediana": 78,
+    "promedio": 78.2
+  }
+}

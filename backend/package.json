@@ -10,7 +10,8 @@
     "seed": "node src/seed.js",
     "demo": "node src/demo.js",
     "test:bd": "node scripts/preparar-bd-pruebas.js",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand",
+    "medir": "node scripts/medir-rendimiento.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

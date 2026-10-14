@@ -1,0 +1,115 @@
+{
+  "fecha": "2026-10-14T01:13:25.969Z",
+  "descripcion": "Repeticiones (versión corregida) de las auditorías cuyo puntaje de rendimiento bajó respecto de \"antes\", para medir la variación entre ejecuciones. Mismas condiciones que scripts/lighthouse.mjs, solo la categoría de rendimiento.",
+  "repeticiones": 3,
+  "resultados": [
+    {
+      "vista": "inicio",
+      "ruta": "/",
+      "dispositivo": "escritorio",
+      "corridas": [
+        {
+          "rendimiento": 98,
+          "fcp_ms": 905.9924,
+          "lcp_ms": 905.9924,
+          "tbt_ms": 0
+        },
+        {
+          "rendimiento": 100,
+          "fcp_ms": 599.7741000000001,
+          "lcp_ms": 599.7741000000001,
+          "tbt_ms": 0
+        },
+        {
+          "rendimiento": 100,
+          "fcp_ms": 566.0605,
+          "lcp_ms": 566.0605,
+          "tbt_ms": 0
+        }
+      ],
+      "minimo": 98,
+      "maximo": 100
+    },
+    {
+      "vista": "reportar",
+      "ruta": "/portal",
+      "dispositivo": "celular",
+      "corridas": [
+        {
+          "rendimiento": 77,
+          "fcp_ms": 3323.9655999999995,
+          "lcp_ms": 4512.2914,
+          "tbt_ms": 102.0621000000001
+        },
+        {
+          "rendimiento": 92,
+          "fcp_ms": 2548.6881999999996,
+          "lcp_ms": 2724.8750999999997,
+          "tbt_ms": 45
+        },
+        {
+          "rendimiento": 92,
+          "fcp_ms": 2535.2364000000002,
+          "lcp_ms": 2876.6970000000006,
+          "tbt_ms": 36.50000000000023
+        }
+      ],
+      "minimo": 77,
+      "maximo": 92
+    },
+    {
+      "vista": "mapa",
+      "ruta": "/portal/mapa",
+      "dispositivo": "escritorio",
+      "corridas": [
+        {
+          "rendimiento": 99,
+          "fcp_ms": 592.8986,
+          "lcp_ms": 992.5473999999999,
+          "tbt_ms": 0
+        },
+        {
+          "rendimiento": 98,
+          "fcp_ms": 590.9603,
+          "lcp_ms": 1002.8178000000001,
+          "tbt_ms": 0
+        },
+        {
+          "rendimiento": 98,
+          "fcp_ms": 589.19,
+          "lcp_ms": 1006.7307000000001,
+          "tbt_ms": 0
+        }
+      ],
+      "minimo": 98,
+      "maximo": 99
+    },
+    {
+      "vista": "mapa",
+      "ruta": "/portal/mapa",
+      "dispositivo": "celular",
+      "corridas": [
+        {
+          "rendimiento": 80,
+          "fcp_ms": 2508.5640615701004,
+          "lcp_ms": 4730.882145100143,
+          "tbt_ms": 51
+        },
+        {
+          "rendimiento": 75,
+          "fcp_ms": 2654.8217,
+          "lcp_ms": 5550.9472000000005,
+          "tbt_ms": 48
+        },
+        {
+          "rendimiento": 77,
+          "fcp_ms": 2651.6923,
+          "lcp_ms": 5190.76715,
+          "tbt_ms": 44
+        }
+      ],
+      "minimo": 75,
+      "maximo": 80
+    }
+  ]
+}

@@ -1,5 +1,8 @@
 // Configuración de rutas de la aplicación con Vue Router.
 import { createRouter, createWebHistory } from 'vue-router';
+import {
+  limpiarSesionSiVencida, tomarExpiracionPendiente, obtenerToken, obtenerUsuario,
+} from '../utils/sesion';
 
 import Bienvenida from '../views/Bienvenida.vue';
 import PortalCiudadanoLayout from '../layouts/PortalCiudadanoLayout.vue';
@@ -86,13 +89,18 @@ const router = createRouter({
 
 // Guarda de navegación: protege las rutas del panel municipal.
 router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem('token');
-  const usuario = JSON.parse(localStorage.getItem('usuario') || 'null');
+  // Una sesión vencida se borra antes de decidir; si la ruta la requería, el login muestra
+  // el aviso de sesión expirada. También cuenta la que se borró al cargar la app (main.js).
+  limpiarSesionSiVencida();
+  const vencida = tomarExpiracionPendiente();
+  const aviso = vencida ? { query: { sesion: 'expirada' } } : {};
+  const token = obtenerToken();
+  const usuario = obtenerUsuario();
 
   if (to.meta.requiereAuth && !token) {
-    next({ name: 'login-municipal' });
+    next({ name: 'login-municipal', ...aviso });
   } else if (to.meta.requiereAuthCiudadano && !token) {
-    next({ name: 'login-ciudadano' });
+    next({ name: 'login-ciudadano', ...aviso });
   } else if (to.meta.requiereAdmin && (!usuario || usuario.rol !== 'administrador')) {
     // El personal municipal normal no puede entrar a las vistas de administración.
     next({ name: 'panel' });

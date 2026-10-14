@@ -1,0 +1,131 @@
+{
+  "fecha": "2026-10-14T00:59:31.910Z",
+  "base": "http://localhost:4173",
+  "resultados": [
+    {
+      "navegador": "chrome",
+      "nombre": "Google Chrome",
+      "instalado": true,
+      "automatizado": true,
+      "version": "Chrome/155.0.8059.41",
+      "modo": "headless (--headless=new)",
+      "pruebas": [
+        {
+          "id": "inicio",
+          "nombre": "Inicio carga",
+          "ok": true,
+          "detalle": "Se muestran las dos entradas (ciudadano y municipalidad).",
+          "errores_consola": [
+            "Failed to load resource: the server responded with a status of 404 (Not Found) http://localhost:4173/favicon.ico"
+          ],
+          "captura": "docs/validacion/compatibilidad/chrome-inicio.jpg"
+        },
+        {
+          "id": "reportar",
+          "nombre": "Reportar: formulario y mapa",
+          "ok": true,
+          "detalle": "Mapa con 8 mosaicos cargados y marcador; detecta la municipalidad.",
+          "errores_consola": [],
+          "captura": "docs/validacion/compatibilidad/chrome-reportar.jpg"
+        },
+        {
+          "id": "mapa",
+          "nombre": "Mapa: mosaicos y marcadores",
+          "ok": true,
+          "detalle": "12 mosaicos cargados; 28 marcadores de 28 reportes.",
+          "errores_consola": [],
+          "captura": "docs/validacion/compatibilidad/chrome-mapa.jpg"
+        },
+        {
+          "id": "consulta",
+          "nombre": "Consulta por código",
+          "ok": true,
+          "detalle": "Muestra el estado y el historial de ER-2026-0019.",
+          "errores_consola": [],
+          "captura": "docs/validacion/compatibilidad/chrome-consulta.jpg"
+        },
+        {
+          "id": "login-ciudadano",
+          "nombre": "Inicio de sesión del ciudadano",
+          "ok": true,
+          "detalle": "Redirige al portal y muestra el nombre de la ciudadana.",
+          "errores_consola": [],
+          "captura": "docs/validacion/compatibilidad/chrome-login-ciudadano.jpg"
+        },
+        {
+          "id": "login-municipal",
+          "nombre": "Inicio de sesión del coordinador",
+          "ok": true,
+          "detalle": "Entra al panel municipal con 12 reportes de su municipalidad.",
+          "errores_consola": [],
+          "captura": "docs/validacion/compatibilidad/chrome-login-municipal.jpg"
+        }
+      ]
+    },
+    {
+      "navegador": "edge",
+      "nombre": "Microsoft Edge",
+      "instalado": true,
+      "automatizado": true,
+      "version": "Edg/155.0.4283.45",
+      "modo": "headless (--headless=new)",
+      "pruebas": [
+        {
+          "id": "inicio",
+          "nombre": "Inicio carga",
+          "ok": true,
+          "detalle": "Se muestran las dos entradas (ciudadano y municipalidad).",
+          "errores_consola": [
+            "Failed to load resource: the server responded with a status of 404 (Not Found) http://localhost:4173/favicon.ico"
+          ],
+          "captura": "docs/validacion/compatibilidad/edge-inicio.jpg"
+        },
+        {
+          "id": "reportar",
+          "nombre": "Reportar: formulario y mapa",
+          "ok": true,
+          "detalle": "Mapa con 8 mosaicos cargados y marcador; detecta la municipalidad.",
+          "errores_consola": [],
+          "captura": "docs/validacion/compatibilidad/edge-reportar.jpg"
+        },
+        {
+          "id": "mapa",
+          "nombre": "Mapa: mosaicos y marcadores",
+          "ok": true,
+          "detalle": "12 mosaicos cargados; 28 marcadores de 28 reportes.",
+          "errores_consola": [],
+          "captura": "docs/validacion/compatibilidad/edge-mapa.jpg"
+        },
+        {
+          "id": "consulta",
+          "nombre": "Consulta por código",
+          "ok": true,
+          "detalle": "Muestra el estado y el historial de ER-2026-0019.",
+          "errores_consola": [],
+          "captura": "docs/validacion/compatibilidad/edge-consulta.jpg"
+        },
+        {
+          "id": "login-ciudadano",
+          "nombre": "Inicio de sesión del ciudadano",
+          "ok": true,
+          "detalle": "Redirige al portal y muestra el nombre de la ciudadana.",
+          "errores_consola": [],
+          "captura": "docs/validacion/compatibilidad/edge-login-ciudadano.jpg"
+        },
+        {
+          "id": "login-municipal",
+          "nombre": "Inicio de sesión del coordinador",
+          "ok": true,
+          "detalle": "Entra al panel municipal con 12 reportes de su municipalidad.",
+          "errores_consola": [],
+          "captura": "docs/validacion/compatibilidad/edge-login-municipal.jpg"
+        }
+      ]
+    },
+    {
+      "navegador": "firefox",
+      "nombre": "Mozilla Firefox",
+      "instalado": false
+    }
+  ]
+}

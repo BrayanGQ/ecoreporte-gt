@@ -1,7 +1,11 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import L from 'leaflet';
 import { catalogoService, reporteService } from '../services/api';
+import { limpiarSesionSiVencida, MENSAJE_SESION_EXPIRADA } from '../utils/sesion';
+
+const router = useRouter();
 
 const tipos = ref([]);
 const form = ref({
@@ -14,6 +18,26 @@ const codigoGenerado = ref('');
 const error = ref('');
 const cargando = ref(false);
 let marcador = null;
+
+// Sesión vencida mientras se llena el formulario: en lugar de enviar el reporte como anónimo
+// en silencio, se avisa y el ciudadano elige iniciar sesión de nuevo o enviarlo anónimo.
+// El aviso se activa con el evento 'sesion-expirada' (utils/sesion.js), lo emita la
+// verificación de esta vista o cualquier petición que detecte el vencimiento.
+const sesionExpirada = ref(false);
+const confirmadoAnonimo = ref(false);
+function alExpirarSesion() {
+  sesionExpirada.value = true;
+}
+onMounted(() => window.addEventListener('sesion-expirada', alExpirarSesion));
+onUnmounted(() => window.removeEventListener('sesion-expirada', alExpirarSesion));
+
+function iniciarSesionDeNuevo() {
+  router.push({ name: 'login-ciudadano', query: { sesion: 'expirada' } });
+}
+function enviarComoAnonimo() {
+  confirmadoAnonimo.value = true;
+  enviar();
+}
 
 // Municipalidad que atenderá el reporte, detectada por la ubicación del marcador.
 // El backend vuelve a decidirla al registrar el reporte; esto es solo la vista previa.
@@ -157,6 +181,11 @@ async function enviar() {
     error.value = cobertura.value.mensaje || 'Esperá a que se verifique la ubicación.';
     return;
   }
+  limpiarSesionSiVencida(); // si venció, emite 'sesion-expirada' y se muestra el aviso
+  if (sesionExpirada.value && !confirmadoAnonimo.value) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
   cargando.value = true;
   try {
     // Si hay sesión iniciada, el interceptor de api.js envía el token y el backend asocia
@@ -168,6 +197,8 @@ async function enviar() {
     codigoGenerado.value = data.codigo_seguimiento;
     form.value.descripcion = '';
     imagenes.value = [];
+    sesionExpirada.value = false;
+    confirmadoAnonimo.value = false;
   } catch (err) {
     error.value = err.response?.data?.error || 'Error al registrar el reporte.';
   } finally {
@@ -182,6 +213,21 @@ async function enviar() {
       <h1 class="title"><i class="bx bx-trash"></i> Reportar un vertedero clandestino</h1>
       <p class="sub">Completá el formulario. No necesitás crear una cuenta.</p>
 
+      <div v-if="sesionExpirada" class="alert aviso sesion-expirada">
+        <i class="bx bx-time-five"></i>
+        <div>
+          <strong>{{ MENSAJE_SESION_EXPIRADA }}</strong>
+          <p>Si enviás el reporte ahora, quedará como anónimo y no aparecerá en "Mis reportes".</p>
+          <div class="acciones-sesion">
+            <button type="button" class="btn btn-sm" @click="iniciarSesionDeNuevo">
+              <i class="bx bx-log-in"></i> Iniciar sesión
+            </button>
+            <button type="button" class="btn ghost btn-sm" :disabled="cargando" @click="enviarComoAnonimo">
+              <i class="bx bx-send"></i> Enviar como anónimo
+            </button>
+          </div>
+        </div>
+      </div>
       <div v-if="error" class="alert error"><i class="bx bx-error-circle"></i> {{ error }}</div>
       <div v-if="codigoGenerado" class="alert ok">
         <i class="bx bx-check-circle"></i>
@@ -189,8 +235,8 @@ async function enviar() {
         Guardalo para consultar el estado.</span>
       </div>
 
-      <label>Tipo de incidencia</label>
-      <select v-model="form.id_tipo_incidencia">
+      <label for="tipo-incidencia">Tipo de incidencia</label>
+      <select id="tipo-incidencia" v-model="form.id_tipo_incidencia">
         <option value="">Selecciona una opción</option>
         <option v-for="t in tipos" :key="t.id_tipo_incidencia" :value="t.id_tipo_incidencia">
           {{ t.nombre_tipo }}
@@ -262,6 +308,11 @@ async function enviar() {
 
 <style scoped>
 .title { display: flex; align-items: center; gap: 10px; }
+.sesion-expirada { align-items: flex-start; }
+.sesion-expirada > i { font-size: 18px; margin-top: 1px; }
+.sesion-expirada p { margin: 2px 0 10px; }
+.acciones-sesion { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn-sm { padding: 7px 13px; font-size: 12.5px; }
 .map-box { height: 280px; border-radius: var(--radius-card); margin-top: 8px; border: 1px solid var(--border); overflow: hidden; }
 .coords {
   display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px;

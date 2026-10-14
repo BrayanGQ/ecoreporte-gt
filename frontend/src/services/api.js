@@ -1,19 +1,58 @@
 // Capa de servicios: centraliza todas las llamadas a la API del backend.
 import axios from 'axios';
+import {
+  obtenerToken, obtenerUsuario, limpiarSesionSiVencida, cerrarSesionLocal, loginDelPortal,
+} from '../utils/sesion';
 
 const api = axios.create({
   baseURL: '/api',
 });
 
-// Interceptor: adjunta automáticamente el token JWT si el usuario inició sesión.
-// Las consultas marcadas con { publico: true } se envían siempre sin token.
+// Interceptor de petición: adjunta automáticamente el token JWT si el usuario inició sesión.
+// Si el token guardado ya venció, borra la sesión y la petición sale sin token (las rutas
+// públicas siguen funcionando; las protegidas responden 401 y las maneja el interceptor de
+// respuesta). Las consultas marcadas con { publico: true } se envían siempre sin token.
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const usuarioVencido = limpiarSesionSiVencida();
+  if (usuarioVencido) config.sesionVencida = usuarioVencido;
+
+  const token = obtenerToken();
   if (token && !config.publico) {
     config.headers.Authorization = `Bearer ${token}`;
+    config.usuarioSesion = obtenerUsuario();
   }
   return config;
 });
+
+// Interceptor de respuesta: si una ruta que requiere sesión responde 401 (token vencido o
+// inválido), cierra la sesión y lleva al usuario al login de su portal con un aviso.
+// No aplica a /auth/* (un login con contraseña incorrecta también responde 401) ni a las
+// peticiones que salieron sin sesión.
+// El router se registra desde main.js (registrarRouter): importarlo aquí crearía una
+// dependencia circular (el router importa las vistas, que importan este módulo).
+let router = null;
+export function registrarRouter(instancia) {
+  router = instancia;
+}
+
+let redirigiendo = false;
+api.interceptors.response.use(
+  (respuesta) => respuesta,
+  async (error) => {
+    const { config, response } = error;
+    const usuario = config?.usuarioSesion || config?.sesionVencida;
+    if (response?.status === 401 && usuario && !config.url.startsWith('/auth/') && router && !redirigiendo) {
+      redirigiendo = true;
+      cerrarSesionLocal();
+      try {
+        await router.push({ name: loginDelPortal(usuario), query: { sesion: 'expirada' } });
+      } finally {
+        redirigiendo = false;
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 // --- Autenticación ---
 export const authService = {

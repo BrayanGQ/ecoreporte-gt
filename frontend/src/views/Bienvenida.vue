@@ -5,7 +5,7 @@ const router = useRouter();
 </script>
 
 <template>
-  <div class="bienvenida">
+  <main class="bienvenida">
     <div class="halo"></div>
     <div class="contenido">
       <div class="marca">
@@ -33,7 +33,7 @@ const router = useRouter();
         </button>
       </div>
     </div>
-  </div>
+  </main>
 </template>
 
 <style scoped>
@@ -148,7 +148,9 @@ const router = useRouter();
 }
 .tarjeta.ciudadano .cta { color: var(--forest); }
 .tarjeta.municipal { border-top: 3px solid var(--forest-dark); }
-.tarjeta.municipal .cta { color: var(--amber); }
+/* Ámbar oscuro de la paleta (el de los badges "en atención"): contraste 5.11:1 sobre blanco.
+   El ámbar base (#E0A800) solo llega a 2.15:1 con texto de 13 px. */
+.tarjeta.municipal .cta { color: #93650A; }
 
 @media (max-width: 640px) {
   .tarjetas { grid-template-columns: 1fr; }

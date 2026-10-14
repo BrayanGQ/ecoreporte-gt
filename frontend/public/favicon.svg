@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Ícono de EcoReporte GT: hoja verde musgo sobre el verde bosque de la app. -->
+  <rect width="64" height="64" rx="14" fill="#2C5F2D"/>
+  <path d="M48 14C30 14 16 22 16 38c0 5 2 9 5 12 3-11 10-19 20-24-8 6-14 14-17 26 3 1 6 2 9 2 16 0 21-16 25-40z" fill="#97BC62"/>
+</svg>
