@@ -27,6 +27,9 @@ router.post('/auth/login', auth.login);
 router.post('/auth/recuperar', auth.recuperarPassword);
 router.post('/auth/restablecer', auth.restablecerPassword);
 
+// ---------- Cuenta propia (cualquier usuario autenticado) ----------
+router.put('/cuenta/password', verificarToken, auth.cambiarPassword);
+
 // ---------- Catálogos (públicos, para los formularios) ----------
 router.get('/catalogos/tipos', catalogo.tiposIncidencia);
 router.get('/catalogos/estados', catalogo.estados);
@@ -72,6 +75,8 @@ router.get('/estadisticas/resumen', personalMunicipal, estadisticas.resumen);
 router.get('/admin/usuarios', soloAdmin, admin.listarUsuarios);
 router.post('/admin/usuarios', soloAdmin, admin.crearUsuario);
 router.put('/admin/usuarios/:id/estado', soloAdmin, admin.cambiarEstadoUsuario);
+// Recuperación de contraseña asistida por el administrador (cualquier rol, por correo).
+router.post('/admin/usuarios/restablecer-password', soloAdmin, admin.restablecerPasswordUsuario);
 router.get('/admin/roles', soloAdmin, admin.listarRoles);
 
 // Configuración de catálogos.

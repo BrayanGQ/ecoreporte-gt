@@ -4,7 +4,8 @@ const request = require('supertest');
 const app = require('../src/app');
 const { query } = require('../src/config/db');
 
-const PASSWORD = 'password123';
+// Contraseña de los usuarios demo en la base de pruebas (scripts/entorno-pruebas.js la fija).
+const PASSWORD = process.env.DEMO_PASSWORD;
 
 // Usuarios de demostración (backend/src/demo.js y usuarios base).
 const USUARIOS = {

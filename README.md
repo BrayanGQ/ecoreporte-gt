@@ -36,7 +36,7 @@ ecoreporte/
 │   │   ├── utils/ubicacion.js  Municipalidad según la ubicación (PostGIS)
 │   │   ├── seed.js             Contraseñas de los usuarios demo base (npm run seed)
 │   │   └── demo.js             Datos de demostración (npm run demo)
-│   ├── scripts/                Preparación de la base de pruebas (npm run test:bd)
+│   ├── scripts/                Carga del esquema (bd:esquema), base de pruebas (test:bd) y mediciones
 │   ├── tests/                  Pruebas de integración (npm test)
 │   ├── .env.example            Plantilla de variables de entorno
 │   └── package.json
@@ -112,6 +112,9 @@ Editá `backend/.env`:
 | `PORT` | Puerto de la API | `3000` |
 | `JWT_SECRET` | Clave para firmar los tokens: usá una cadena larga y aleatoria | — (obligatoria) |
 | `JWT_EXPIRES_IN` | Duración de la sesión | `8h` |
+| `DATABASE_URL` | Solo para usar una base en la nube (Neon): si está definida, reemplaza a las `DB_*` (ver "Despliegue") | — (vacía en local) |
+| `NODE_ENV` | `production` en el servidor de producción | — |
+| `DEMO_PASSWORD` | Contraseña que asignan `npm run seed` y `npm run demo` a los usuarios de demostración (mínimo 6 caracteres) | `password123` |
 
 Asigná las contraseñas de los usuarios demo base y arrancá el servidor:
 
@@ -175,7 +178,8 @@ limpieza. Si la carpeta no existe, genera imágenes de muestra. Las fotos inclui
 
 ## Usuarios de demostración
 
-Todos usan la contraseña **password123**. El ciudadano entra por el portal ciudadano
+Todos usan la contraseña **password123**, salvo que `DEMO_PASSWORD` defina otra al correr
+`npm run seed` y `npm run demo` (ver "Despliegue"). El ciudadano entra por el portal ciudadano
 (`/portal/login`); el resto, por el portal municipal (`/municipal/login`).
 
 **Usuarios base** (scripts 02 y 04 + `npm run seed`):
@@ -222,6 +226,8 @@ Todos usan la contraseña **password123**. El ciudadano entra por el portal ciud
 - *Mis reportes*: estado, historial y, cuando el reporte se resuelve, las fotos de la limpieza.
 - Notificaciones de cada cambio de estado de sus reportes.
 - Registro de cuenta y recuperación de contraseña.
+- *Mi cuenta* (clic en su nombre, en la barra superior): datos de la cuenta y cambio de la
+  contraseña propia.
 
 **Coordinador (personal municipal)** — solo reportes de su municipalidad
 - Lista de reportes y detalle con la evidencia del ciudadano ("antes") y de la limpieza ("después").
@@ -235,12 +241,16 @@ Todos usan la contraseña **password123**. El ciudadano entra por el portal ciud
   (obligatorias), tomadas con la cámara del celular.
 
 **Administrador**
-- Gestión de usuarios: crear coordinadores, encargados de cuadrilla y administradores, y
-  activar o desactivar cuentas.
+- Gestión de usuarios: crear coordinadores, encargados de cuadrilla y administradores,
+  activar o desactivar cuentas y restablecer la contraseña de cualquier cuenta (también de
+  ciudadanos) buscándola por correo.
 - Catálogos: tipos de incidencia y municipalidades; activar una municipalidad significa que
   adoptó la plataforma y empieza a recibir los reportes de su territorio.
 - Estadísticas globales, con filtro por municipalidad. Ve todos los reportes en solo lectura:
   no interviene en su atención.
+
+**Todo el personal** (coordinador, cuadrilla y administrador) tiene *Mi cuenta* en el menú
+lateral, para ver sus datos y cambiar su propia contraseña.
 
 **Flujo de un reporte:** `recibido` → `asignado` (coordinador) → `en_atencion` (cuadrilla) →
 `resuelto` (cuadrilla, con fotos). Desde `recibido`, el coordinador también puede pasarlo a
@@ -274,11 +284,13 @@ el historial y se notifica al ciudadano.
 | POST | `/api/reportes/:id/resolver` | Cuadrilla | Resolver (con 1 a 5 fotos) |
 | GET | `/api/notificaciones` | Autenticado | Notificaciones propias |
 | PUT | `/api/notificaciones/:id/leida` | Autenticado | Marcar como leída |
+| PUT | `/api/cuenta/password` | Autenticado | Cambiar la contraseña propia (pide la actual) |
 | GET | `/api/estadisticas/resumen` | Coordinador, admin | Totales por estado |
 | GET | `/api/estadisticas/por-estado` | Coordinador, admin | Conteo por estado |
 | GET | `/api/estadisticas/por-tipo` | Coordinador, admin | Conteo por tipo de incidencia |
 | GET/POST | `/api/admin/usuarios` | Administrador | Listar y crear cuentas |
 | PUT | `/api/admin/usuarios/:id/estado` | Administrador | Activar o desactivar una cuenta |
+| POST | `/api/admin/usuarios/restablecer-password` | Administrador | Asignar una contraseña nueva a cualquier cuenta, por correo |
 | GET | `/api/admin/roles` | Administrador | Roles asignables |
 | GET/POST | `/api/admin/tipos-incidencia` | Administrador | Listar y crear tipos |
 | PUT | `/api/admin/tipos-incidencia/:id` | Administrador | Editar un tipo |
@@ -293,7 +305,7 @@ filtrar además por `id_municipalidad`.
 
 ## Pruebas
 
-El backend tiene 37 pruebas de integración automatizadas (Jest + Supertest) que corren contra una
+El backend tiene 42 pruebas de integración automatizadas (Jest + Supertest) que corren contra una
 base de datos aparte, `ecoreporte_test`, sin tocar los datos de la aplicación. Desde `backend/`:
 
 ```bash
@@ -303,6 +315,78 @@ npm test                         # corre las pruebas
 ```
 
 Casos, resultados y defectos: [docs/PRUEBAS.md](docs/PRUEBAS.md).
+
+Las pruebas siempre usan la base local de `.env.test`: aunque `backend/.env` tenga una
+`DATABASE_URL` (por ejemplo la de Neon), se ignora al correr `npm test` o `npm run test:bd`.
+
+---
+
+## Despliegue (Neon + Render)
+
+En producción, la base de datos está en **Neon** (PostgreSQL con PostGIS) y un solo servicio web
+en **Render** sirve la API (`/api/...`) y el frontend compilado (`frontend/dist`). Cualquier ruta
+que no sea de la API devuelve `index.html`, así que recargar páginas como `/portal/mapa` funciona.
+
+### 1. Base de datos en Neon
+
+1. Creá un proyecto en https://neon.tech y copiá la cadena de conexión
+   (*Dashboard → Connection string*), con la forma
+   `postgresql://USUARIO:CONTRASEÑA@HOST/BASE?sslmode=require`.
+2. Cargá el esquema y los datos iniciales **desde tu equipo**: poné esa cadena en
+   `backend/.env` como `DATABASE_URL=...` (si está definida, el backend la usa con SSL e ignora
+   las variables `DB_*`) y ejecutá, desde `backend/`:
+
+   ```bash
+   npm run bd:esquema   # ejecuta database/01 a 05 (no necesita psql); no hace nada si ya hay tablas
+   npm run seed         # contraseñas de los usuarios demo base
+   npm run demo         # opcional: datos de demostración (BORRA todos los reportes)
+   ```
+
+   El script 01 activa PostGIS (`CREATE EXTENSION postgis`), que Neon soporta.
+3. Al terminar, quitá o comentá `DATABASE_URL` en `backend/.env` para volver a trabajar con la
+   base local.
+
+> ⚠️ Por defecto, los usuarios demo quedan con la contraseña pública `password123`. Antes de
+> correr `npm run seed` y `npm run demo` contra Neon, agregá a `backend/.env` una contraseña
+> propia en `DEMO_PASSWORD` (mínimo 6 caracteres): ambos scripts la asignan a todas las cuentas
+> demo y no la muestran en la consola. Las pruebas automatizadas no la usan. También podés
+> desactivar las cuentas que no necesites desde *Administración → Usuarios*.
+
+### 2. Servicio web en Render
+
+Creá un **Web Service** conectado al repositorio, con estos valores:
+
+| Campo | Valor |
+|---|---|
+| Root Directory | *(vacío: la raíz del repositorio)* |
+| Runtime | Node |
+| Build Command | `npm ci --include=dev --prefix frontend && npm run build --prefix frontend && npm ci --prefix backend` |
+| Start Command | `npm start --prefix backend` |
+| Health Check Path | `/api/salud` |
+
+`--include=dev` es necesario porque Vite es una dependencia de desarrollo del frontend y, con
+`NODE_ENV=production`, `npm ci` no la instalaría.
+
+**Variables de entorno** (*Environment*):
+
+| Variable | Valor |
+|---|---|
+| `DATABASE_URL` | Cadena de conexión de Neon |
+| `JWT_SECRET` | Cadena larga y aleatoria, distinta de la de desarrollo (`node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`) |
+| `JWT_EXPIRES_IN` | `8h` |
+| `NODE_ENV` | `production` |
+| `NODE_VERSION` | `22` (versión de Node que usa Render; el proyecto se probó con 22.20.0) |
+
+`PORT` no hace falta: Render la define y el backend la usa. `NODE_ENV=production` es
+obligatoria: además de identificar el entorno, hace que la recuperación de contraseña no
+devuelva el token (ver "Notas para el desarrollo"). `DEMO_PASSWORD` tampoco va en Render:
+solo la usan `npm run seed` y `npm run demo`, que se corren desde tu equipo (paso 1).
+
+### 3. Verificación
+
+- `https://<tu-servicio>.onrender.com/api/salud` responde
+  `{"mensaje":"API de EcoReporte GT en funcionamiento.","version":"1.0.0"}`.
+- `https://<tu-servicio>.onrender.com/` muestra la app, y recargar `/portal/mapa` no da 404.
 
 ---
 
@@ -315,8 +399,15 @@ Casos, resultados y defectos: [docs/PRUEBAS.md](docs/PRUEBAS.md).
   8 horas (`JWT_EXPIRES_IN`). Si venció, el frontend borra la sesión; si una ruta protegida
   responde 401, lleva al usuario al login de su portal con el aviso "Tu sesión expiró, iniciá
   sesión de nuevo.". Las rutas públicas siguen funcionando sin sesión.
-- **Recuperación de contraseña:** en esta versión no se envían correos; el backend devuelve el
-  token de recuperación en la respuesta para poder completar el flujo en desarrollo.
+- **Recuperación de contraseña:** en esta versión no se envían correos. En desarrollo, el backend
+  devuelve el token de recuperación en la respuesta para poder completar el flujo. Con
+  `NODE_ENV=production` nunca lo devuelve: responde siempre "La recuperación automática por
+  correo todavía no está disponible. Si tu correo está registrado, pedile al administrador de
+  EcoReporte GT que restablezca tu contraseña.", exista o no el correo, y la pantalla muestra
+  solo ese mensaje. El administrador la restablece desde *Administración → Usuarios →
+  Restablecer contraseña* (o con el botón de la llave en cada cuenta de personal): asigna una
+  contraseña temporal, que puede generar ahí mismo, y se la comunica a la persona. Después,
+  esa persona la cambia por una propia desde *Mi cuenta*.
 
 ---
 

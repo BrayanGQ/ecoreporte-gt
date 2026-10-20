@@ -145,6 +145,45 @@ async function cambiarEstadoUsuario(req, res) {
   }
 }
 
+// POST /api/admin/usuarios/restablecer-password — asigna una contraseña nueva a una cuenta.
+// Body: { correo, password }. La cuenta se busca por correo (sin distinguir mayúsculas), así
+// sirve para cualquier rol, incluidos los ciudadanos, que no aparecen en la lista de personal.
+// Es la vía de recuperación en producción, donde POST /api/auth/recuperar no devuelve el token.
+async function restablecerPasswordUsuario(req, res) {
+  const { correo, password } = req.body;
+  if (!correo || !correo.trim() || !password) {
+    return res.status(400).json({ error: 'El correo y la nueva contraseña son obligatorios.' });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
+  }
+
+  try {
+    const usuario = await query(
+      `SELECT u.id_usuario, u.nombre_completo, u.correo, u.estado, r.nombre_rol
+       FROM usuario u JOIN rol r ON u.id_rol = r.id_rol
+       WHERE LOWER(u.correo) = LOWER($1)`,
+      [correo.trim()]
+    );
+    if (usuario.rows.length === 0) {
+      return res.status(404).json({ error: 'No existe una cuenta con ese correo.' });
+    }
+
+    const password_hash = await bcrypt.hash(password, 10);
+    await query('UPDATE usuario SET password_hash = $1 WHERE id_usuario = $2', [
+      password_hash, usuario.rows[0].id_usuario,
+    ]);
+
+    res.json({
+      mensaje: `Contraseña restablecida para ${usuario.rows[0].nombre_completo}.`,
+      usuario: usuario.rows[0],
+    });
+  } catch (err) {
+    console.error('Error al restablecer la contraseña:', err.message);
+    res.status(500).json({ error: 'Error al restablecer la contraseña.' });
+  }
+}
+
 // =========================================================================
 // CATÁLOGO: TIPOS DE INCIDENCIA
 // =========================================================================
@@ -357,6 +396,7 @@ module.exports = {
   listarRoles,
   crearUsuario,
   cambiarEstadoUsuario,
+  restablecerPasswordUsuario,
   listarTiposIncidencia,
   crearTipoIncidencia,
   editarTipoIncidencia,

@@ -38,6 +38,7 @@ function cerrarSesion() {
           <i class="bx bx-grid-alt"></i> {{ usuario?.rol === 'encargado_cuadrilla' ? 'Mis reportes' : 'Reportes' }}
         </router-link>
         <router-link v-if="esPersonal" to="/municipal/panel/estadisticas"><i class="bx bx-bar-chart-alt-2"></i> Estadísticas</router-link>
+        <router-link to="/municipal/panel/cuenta"><i class="bx bx-user-circle"></i> Mi cuenta</router-link>
 
         <template v-if="esAdministrador">
           <span class="nav-group"><i class="bx bx-shield-quarter"></i> Administración</span>

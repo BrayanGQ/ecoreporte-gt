@@ -2,29 +2,30 @@
 // Ejecutar una sola vez después de cargar 02_datos_iniciales.sql:  npm run seed
 // También lo reutiliza scripts/preparar-bd-pruebas.js (exporta asignarContrasenas).
 const bcrypt = require('bcryptjs');
-const { query, pool } = require('./config/db');
+const { query, pool } = require('./config/db'); // también carga el .env
+const { passwordDemo } = require('./utils/passwordDemo');
 
+// Usuarios demo base. La contraseña sale de DEMO_PASSWORD o, si no está definida, es password123.
 const USUARIOS_DEMO = [
-  { correo: 'admin@ecoreporte.gt',     password: 'password123' },
-  { correo: 'municipal@ecoreporte.gt', password: 'password123' },
-  { correo: 'ciudadano@ecoreporte.gt', password: 'password123' },
-  // Requiere haber corrido database/04_rol_cuadrilla.sql.
-  { correo: 'cuadrilla@ecoreporte.gt', password: 'password123' },
+  'admin@ecoreporte.gt',
+  'municipal@ecoreporte.gt',
+  'ciudadano@ecoreporte.gt',
+  'cuadrilla@ecoreporte.gt', // requiere haber corrido database/04_rol_cuadrilla.sql
 ];
 
 // Asigna las contraseñas de los usuarios demo base. No cierra el pool.
 async function asignarContrasenas({ silencioso = false } = {}) {
-  for (const u of USUARIOS_DEMO) {
-    const hash = await bcrypt.hash(u.password, 10);
+  const hash = await bcrypt.hash(passwordDemo(), 10);
+  for (const correo of USUARIOS_DEMO) {
     const res = await query(
       'UPDATE usuario SET password_hash = $1 WHERE correo = $2 RETURNING correo',
-      [hash, u.correo]
+      [hash, correo]
     );
     if (silencioso) continue;
     if (res.rows.length > 0) {
-      console.log(`Contraseña actualizada para ${u.correo}`);
+      console.log(`Contraseña actualizada para ${correo}`);
     } else {
-      console.log(`Usuario no encontrado: ${u.correo}`);
+      console.log(`Usuario no encontrado: ${correo}`);
     }
   }
 }
@@ -32,7 +33,10 @@ async function asignarContrasenas({ silencioso = false } = {}) {
 async function seed() {
   try {
     await asignarContrasenas();
-    console.log('\nSeed completado. Usuarios demo listos con la contraseña: password123');
+    // Si la contraseña viene de DEMO_PASSWORD no se muestra: es un dato sensible.
+    console.log(process.env.DEMO_PASSWORD
+      ? '\nSeed completado. Usuarios demo listos con la contraseña de DEMO_PASSWORD.'
+      : '\nSeed completado. Usuarios demo listos con la contraseña: password123');
   } catch (err) {
     console.error('Error en seed:', err.message);
   } finally {

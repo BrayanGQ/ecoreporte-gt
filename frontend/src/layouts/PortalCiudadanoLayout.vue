@@ -105,7 +105,9 @@ onUnmounted(() => document.removeEventListener('click', cerrarSiEsExterno));
           </div>
         </div>
 
-        <span class="user"><i class="bx bx-user-circle"></i> {{ usuario.nombre_completo }}</span>
+        <router-link to="/portal/cuenta" class="user" title="Mi cuenta: cambiar contraseña">
+          <i class="bx bx-user-circle"></i> {{ usuario.nombre_completo }}
+        </router-link>
         <button class="enter" @click="cerrarSesion"><i class="bx bx-log-out"></i> Salir</button>
       </template>
       <router-link v-else to="/portal/login" class="login-link">

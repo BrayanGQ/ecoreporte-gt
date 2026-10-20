@@ -66,7 +66,7 @@ Requisitos: PostgreSQL con PostGIS y las dependencias del backend instaladas (`n
 
 ## Casos de prueba
 
-Ejecución del 13/10/2026 sobre `ecoreporte_test` (CP-36 y CP-37 agregados tras la corrección de D-01).
+Ejecución sobre `ecoreporte_test`: CP-01 a CP-35 el 13/10/2026; CP-36 y CP-37 tras la corrección de D-01; CP-38 a CP-42 el 20/10/2026 (corrección de D-02, restablecimiento por el administrador y cambio de la contraseña propia). La suite completa (42 casos) se volvió a ejecutar el 20/10/2026 con todos los casos aprobados.
 
 | ID | Módulo | Descripción | Resultado esperado | Resultado obtenido |
 |---|---|---|---|---|
@@ -107,21 +107,30 @@ Ejecución del 13/10/2026 sobre `ecoreporte_test` (CP-36 y CP-37 agregados tras 
 | CP-35 | Administración | Coordinador, cuadrilla y ciudadano acceden a rutas `/api/admin` | 403 en todas las rutas probadas; Mixco no cambia de estado | Aprobado |
 | CP-36 | Reportes | Reporte sin sesión enviando en el cuerpo el `id_usuario_reporta` de otro usuario | 201; el reporte queda anónimo (`id_usuario_reporta` nulo), no a nombre del otro usuario | Aprobado |
 | CP-37 | Reportes | Reporte con sesión de ciudadano enviando en el cuerpo el id de otro usuario | 201; el reporte y su foto quedan a nombre del ciudadano del token; aparece en sus "Mis reportes" y no en los del otro | Aprobado |
+| CP-38 | Administración | El admin restablece la contraseña de un ciudadano buscándolo por correo (en mayúsculas) | 200 con la cuenta encontrada (rol `ciudadano`, sin `password_hash`); la contraseña anterior da 401 y la nueva 200 | Aprobado |
+| CP-39 | Administración | Restablecer contraseña sin permisos o con datos inválidos | Coordinador 403; sin token 401; correo inexistente 404; contraseña corta o sin correo 400; la contraseña original sigue funcionando | Aprobado |
+| CP-40 | Autenticación | Recuperación de contraseña con `NODE_ENV=production` (correo existente e inexistente) y en desarrollo | Producción: 200 sin `token_recuperacion` y la misma respuesta para ambos correos. Desarrollo: 200 con token | Aprobado |
+| CP-41 | Autenticación | Un usuario con sesión cambia su contraseña (`PUT /api/cuenta/password`) | 200; la contraseña anterior da 401 y la nueva 200 | Aprobado |
+| CP-42 | Autenticación | Cambio de contraseña sin sesión, con la actual incorrecta, nueva corta, igual a la actual o incompleto | Sin sesión 401; los demás 400 (la actual incorrecta da 400 y no 401, para no cerrar la sesión en el frontend); la contraseña no cambia | Aprobado |
 
 CP-36 y CP-37 se agregaron para el defecto D-01. Antes de la corrección ambos fallaban (el
 reporte quedaba a nombre del id enviado en el cuerpo); después de la corrección pasan.
+CP-38 a CP-40 se agregaron con la corrección del defecto D-02 y el restablecimiento de
+contraseñas por el administrador. CP-41 y CP-42 cubren el cambio de la contraseña propia
+(*Mi cuenta*).
 
 ## Resumen
 
 | Total de casos | Aprobados | Fallidos |
 |---|---|---|
-| 37 | 37 | 0 |
+| 42 | 42 | 0 |
 
 ## Defectos encontrados y corregidos
 
 | ID | Descripción | Archivo | Corrección |
 |---|---|---|---|
 | D-01 | `POST /api/reportes` es público y tomaba `id_usuario_reporta` del cuerpo de la petición: cualquiera podía registrar un reporte a nombre de otro ciudadano (le aparecía en "Mis reportes" y recibía sus notificaciones). El frontend enviaba ese campo desde `localStorage`. | `backend/src/routes/index.js`, `backend/src/controllers/reporteController.js`, `frontend/src/views/Reportar.vue` | La ruta usa `tokenOpcional`. El controlador toma el autor de `req.usuario.id_usuario` si hay un token válido y, si no, deja el reporte anónimo (`null`); se ignora siempre lo que venga en el cuerpo. El frontend ya no envía el campo: el token lo adjunta el interceptor de `api.js`. Cubierto por CP-36 y CP-37. |
+| D-02 | `POST /api/auth/recuperar` devolvía el token de recuperación en la respuesta también en producción: cualquiera que conociera un correo (p. ej. `admin@ecoreporte.gt`) podía cambiar la contraseña de esa cuenta. Detectado al revisar el despliegue, no por una prueba. | `backend/src/controllers/authController.js`, `frontend/src/views/RecuperarPassword.vue`, `backend/src/controllers/adminController.js`, `backend/src/routes/index.js`, `frontend/src/views/AdminUsuarios.vue` | Con `NODE_ENV=production` el endpoint nunca devuelve el token y responde lo mismo exista o no el correo; la pantalla muestra solo ese mensaje. Para que la recuperación siga siendo posible, el administrador puede restablecer la contraseña de cualquier cuenta por correo (`POST /api/admin/usuarios/restablecer-password`, *Administración → Usuarios*). Cubierto por CP-38, CP-39 y CP-40. |
 
 Durante la puesta a punto hubo además un problema en la configuración de las pruebas, no en el
 sistema: el pool de PostgreSQL se cerraba antes de que cada archivo terminara de limpiar sus

@@ -23,7 +23,6 @@ const MEDIDAS = 50;
 const PUERTO = Number(process.env.PORT_MEDICION || 3100);
 const BASE = `http://127.0.0.1:${PUERTO}/api`;
 const MARCA = '[MEDICION]';
-const PASSWORD = 'password123';
 const COORDINADOR = 'ana.morales@ecoreporte.gt';   // Guatemala (datos de demo.js)
 const CUADRILLA = 'carlos.perez@ecoreporte.gt';    // Guatemala
 const CARPETA_SALIDA = path.join(__dirname, '..', '..', 'docs', 'validacion');
@@ -31,6 +30,7 @@ const CARPETA_SALIDA = path.join(__dirname, '..', '..', 'docs', 'validacion');
 const FOTO_RESOLVER = path.join(__dirname, '..', '..', 'database', 'demo_fotos', 'despues_1.jpg');
 
 const nombreBd = cargarEntornoPruebas(); // antes de importar config/db.js
+const PASSWORD = process.env.DEMO_PASSWORD; // contraseña de los usuarios demo de la base de pruebas
 const { pool } = require('../src/config/db');
 
 // ---------------------------------------------------------------------------

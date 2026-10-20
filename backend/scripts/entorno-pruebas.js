@@ -15,6 +15,22 @@ function cargarEntornoPruebas() {
   }
   dotenv.config({ path: ARCHIVO, override: true });
 
+  // Las pruebas usan una base local definida con DB_*. Si backend/.env tiene DATABASE_URL
+  // (p. ej. la de Neon en producción), config/db.js la preferiría: se anula con un valor vacío,
+  // que dotenv no sobrescribe y que config/db.js trata como "no definida".
+  if (process.env.DATABASE_URL && dotenv.parse(fs.readFileSync(ARCHIVO)).DATABASE_URL) {
+    throw new Error(
+      '.env.test no debe definir DATABASE_URL: las pruebas usan una base local configurada con DB_* ' +
+      '(la base se borra y se recrea en cada npm run test:bd).'
+    );
+  }
+  process.env.DATABASE_URL = '';
+
+  // Contraseña de los usuarios demo en la base de pruebas: la de .env.test o password123, nunca la
+  // DEMO_PASSWORD de backend/.env (que puede ser la de producción). La usan test:bd (seed y demo),
+  // las pruebas y la medición de rendimiento para iniciar sesión.
+  process.env.DEMO_PASSWORD = dotenv.parse(fs.readFileSync(ARCHIVO)).DEMO_PASSWORD || 'password123';
+
   // Protección de los datos reales: las pruebas borran y recrean esta base.
   const nombre = process.env.DB_NAME || '';
   if (!nombre.endsWith('_test')) {

@@ -60,6 +60,8 @@ export const authService = {
   login: (datos) => api.post('/auth/login', datos),
   recuperar: (correo) => api.post('/auth/recuperar', { correo }),
   restablecer: (token, nueva_password) => api.post('/auth/restablecer', { token, nueva_password }),
+  // Cambio de la contraseña propia (requiere sesión).
+  cambiarPassword: (password_actual, password_nueva) => api.put('/cuenta/password', { password_actual, password_nueva }),
 };
 
 // --- Catálogos ---
@@ -107,6 +109,7 @@ export const adminService = {
   roles: () => api.get('/admin/roles'),
   crearUsuario: (datos) => api.post('/admin/usuarios', datos),
   cambiarEstadoUsuario: (id, estado) => api.put(`/admin/usuarios/${id}/estado`, { estado }),
+  restablecerPassword: (correo, password) => api.post('/admin/usuarios/restablecer-password', { correo, password }),
 
   // Catálogo de tipos de incidencia
   tipos: () => api.get('/admin/tipos-incidencia'),

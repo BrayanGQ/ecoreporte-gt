@@ -19,6 +19,7 @@ import MisReportes from '../views/MisReportes.vue';
 import AdminUsuarios from '../views/AdminUsuarios.vue';
 import AdminCatalogos from '../views/AdminCatalogos.vue';
 import Estadisticas from '../views/Estadisticas.vue';
+import MiCuenta from '../views/MiCuenta.vue';
 
 const routes = [
   // Pantalla de bienvenida: punto de entrada, sin navbar.
@@ -41,6 +42,12 @@ const routes = [
         component: MisReportes,
         meta: { requiereAuthCiudadano: true },
       },
+      {
+        path: 'cuenta',
+        name: 'cuenta-ciudadano',
+        component: MiCuenta,
+        meta: { requiereAuthCiudadano: true },
+      },
     ],
   },
 
@@ -58,6 +65,7 @@ const routes = [
     children: [
       { path: '', name: 'panel', component: PanelMunicipal },
       { path: 'reporte/:id', name: 'detalle', component: DetalleReporte },
+      { path: 'cuenta', name: 'cuenta-municipal', component: MiCuenta },
       {
         path: 'estadisticas',
         name: 'estadisticas',

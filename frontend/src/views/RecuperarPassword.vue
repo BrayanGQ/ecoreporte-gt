@@ -2,7 +2,9 @@
 import { ref } from 'vue';
 import { authService } from '../services/api';
 
-const paso = ref(1); // 1 = solicitar, 2 = restablecer
+// 1 = solicitar; 2 = restablecer (solo en desarrollo, cuando el backend devuelve el token);
+// 3 = solicitud registrada sin token (producción): solo se muestra el mensaje del backend.
+const paso = ref(1);
 const correo = ref('');
 const token = ref('');
 const nuevaPassword = ref('');
@@ -18,9 +20,12 @@ async function solicitar() {
     const { data } = await authService.recuperar(correo.value);
     mensaje.value = data.mensaje;
     // En desarrollo, el backend devuelve el token para poder continuar la prueba.
+    // En producción no lo devuelve: no hay paso 2, solo el mensaje.
     if (data.token_recuperacion) {
       token.value = data.token_recuperacion;
       paso.value = 2;
+    } else {
+      paso.value = 3;
     }
   } catch (err) {
     error.value = err.response?.data?.error || 'Error al procesar la solicitud.';
@@ -54,16 +59,16 @@ async function restablecer() {
 
       <!-- Paso 1: solicitar por correo -->
       <template v-if="paso === 1">
-        <p class="sub">Ingresá tu correo y te enviaremos instrucciones para restablecerla.</p>
+        <p class="sub">Ingresá el correo de tu cuenta para solicitar la recuperación de tu contraseña.</p>
         <label>Correo electrónico</label>
         <input v-model="correo" type="email" placeholder="correo@ejemplo.com" />
         <button class="btn block" style="margin-top:20px" :disabled="cargando" @click="solicitar">
-          <i class="bx bx-envelope"></i> {{ cargando ? 'Enviando...' : 'Enviar instrucciones' }}
+          <i class="bx bx-envelope"></i> {{ cargando ? 'Enviando...' : 'Solicitar recuperación' }}
         </button>
       </template>
 
-      <!-- Paso 2: restablecer con nueva contraseña -->
-      <template v-else>
+      <!-- Paso 2: restablecer con nueva contraseña (solo en desarrollo) -->
+      <template v-else-if="paso === 2">
         <p class="sub">Ingresá tu nueva contraseña.</p>
         <label>Nueva contraseña</label>
         <input v-model="nuevaPassword" type="password" placeholder="Mínimo 6 caracteres" />

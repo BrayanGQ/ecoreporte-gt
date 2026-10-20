@@ -9,6 +9,7 @@
     "dev": "nodemon src/index.js",
     "seed": "node src/seed.js",
     "demo": "node src/demo.js",
+    "bd:esquema": "node scripts/cargar-esquema.js",
     "test:bd": "node scripts/preparar-bd-pruebas.js",
     "test": "jest --runInBand",
     "medir": "node scripts/medir-rendimiento.js"

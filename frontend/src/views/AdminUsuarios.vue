@@ -56,6 +56,7 @@ function abrirFormulario() {
   };
   error.value = '';
   exito.value = '';
+  mostrarRestablecer.value = false;
   mostrarFormulario.value = true;
 }
 
@@ -108,6 +109,53 @@ async function alternarEstado(usuario) {
     exito.value = data.mensaje;
   } catch (err) {
     error.value = err.response?.data?.error || 'No se pudo actualizar el estado de la cuenta.';
+  }
+}
+
+// --- Restablecer contraseña (cualquier cuenta, buscada por correo) ---
+// Es la vía de recuperación en producción: la pantalla "Recuperar contraseña" no entrega el token
+// y le indica al usuario que se lo pida al administrador.
+const mostrarRestablecer = ref(false);
+const restableciendo = ref(false);
+const formRestablecer = ref({ correo: '', password: '' });
+
+// Contraseña temporal aleatoria, sin caracteres que se confunden al dictarla (0/O, 1/l/I).
+function generarPassword() {
+  const caracteres = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  const valores = crypto.getRandomValues(new Uint32Array(10));
+  formRestablecer.value.password = Array.from(valores, (v) => caracteres[v % caracteres.length]).join('');
+}
+
+function abrirRestablecer(correo = '') {
+  formRestablecer.value = { correo, password: '' };
+  generarPassword();
+  error.value = '';
+  exito.value = '';
+  mostrarFormulario.value = false;
+  mostrarRestablecer.value = true;
+}
+
+async function restablecerPassword() {
+  error.value = '';
+  exito.value = '';
+  const { correo, password } = formRestablecer.value;
+  if (!correo.trim() || !password) {
+    error.value = 'Indicá el correo de la cuenta y la contraseña nueva.';
+    return;
+  }
+  if (password.length < 6) {
+    error.value = 'La contraseña debe tener al menos 6 caracteres.';
+    return;
+  }
+  restableciendo.value = true;
+  try {
+    const { data } = await adminService.restablecerPassword(correo.trim(), password);
+    exito.value = `${data.mensaje} Comunicale la contraseña nueva por un medio seguro y pedile que la cambie desde "Mi cuenta".`;
+    mostrarRestablecer.value = false;
+  } catch (err) {
+    error.value = err.response?.data?.error || 'No se pudo restablecer la contraseña.';
+  } finally {
+    restableciendo.value = false;
   }
 }
 
@@ -206,8 +254,39 @@ onMounted(cargar);
       </div>
     </div>
 
+    <!-- Restablecer contraseña de cualquier cuenta (personal o ciudadano) -->
+    <div class="card form-card" v-else-if="mostrarRestablecer">
+      <h2 class="section-title"><i class="bx bx-key"></i> Restablecer contraseña</h2>
+      <p class="ayuda">
+        Sirve para cualquier cuenta, también las de ciudadanos. Asigná una contraseña temporal y
+        comunicásela a la persona por un medio seguro.
+      </p>
+      <div class="grid-2">
+        <div>
+          <label for="rest-correo">Correo de la cuenta</label>
+          <input id="rest-correo" v-model="formRestablecer.correo" type="email" placeholder="correo@ejemplo.com" />
+        </div>
+        <div>
+          <label for="rest-password">Contraseña nueva</label>
+          <div class="campo-password">
+            <input id="rest-password" v-model="formRestablecer.password" type="text" autocomplete="off" />
+            <button type="button" class="btn ghost" title="Generar una contraseña aleatoria" @click="generarPassword">
+              <i class="bx bx-refresh"></i> Generar
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn" :disabled="restableciendo" @click="restablecerPassword">
+          <i class="bx bx-key"></i> {{ restableciendo ? 'Guardando...' : 'Restablecer contraseña' }}
+        </button>
+        <button class="btn ghost" @click="mostrarRestablecer = false"><i class="bx bx-x"></i> Cancelar</button>
+      </div>
+    </div>
+
     <div class="toolbar" v-else>
       <button class="btn" @click="abrirFormulario"><i class="bx bx-user-plus"></i> Nuevo usuario</button>
+      <button class="btn ghost" @click="abrirRestablecer()"><i class="bx bx-key"></i> Restablecer contraseña</button>
     </div>
 
     <div v-if="cargando" class="alert ok"><i class="bx bx-loader-alt bx-spin"></i> Cargando usuarios...</div>
@@ -237,14 +316,24 @@ onMounted(cargar);
                 </span>
               </td>
               <td>
-                <button
-                  class="btn ghost btn-sm"
-                  :disabled="usuarioActual && u.id_usuario === usuarioActual.id_usuario && u.estado"
-                  @click="alternarEstado(u)"
-                >
-                  <i :class="u.estado ? 'bx bx-user-x' : 'bx bx-user-check'"></i>
-                  {{ u.estado ? 'Desactivar' : 'Activar' }}
-                </button>
+                <div class="acciones">
+                  <button
+                    class="btn ghost btn-sm"
+                    :disabled="usuarioActual && u.id_usuario === usuarioActual.id_usuario && u.estado"
+                    @click="alternarEstado(u)"
+                  >
+                    <i :class="u.estado ? 'bx bx-user-x' : 'bx bx-user-check'"></i>
+                    {{ u.estado ? 'Desactivar' : 'Activar' }}
+                  </button>
+                  <button
+                    class="btn ghost btn-sm"
+                    :title="`Restablecer la contraseña de ${u.nombre_completo}`"
+                    :aria-label="`Restablecer la contraseña de ${u.nombre_completo}`"
+                    @click="abrirRestablecer(u.correo)"
+                  >
+                    <i class="bx bx-key"></i>
+                  </button>
+                </div>
               </td>
             </tr>
             <tr v-if="usuarios.length === 0">
@@ -290,7 +379,16 @@ onMounted(cargar);
 .stat-number { font-size: 24px; font-weight: 700; color: var(--slate); line-height: 1.2; }
 .stat-label { font-size: 13px; color: var(--text-secondary); }
 
-.toolbar { margin-bottom: 18px; }
+.toolbar { margin-bottom: 18px; display: flex; flex-wrap: wrap; gap: 10px; }
+.ayuda { font-size: 13px; color: var(--text-secondary); margin: -6px 0 4px; }
+.campo-password { display: flex; gap: 8px; }
+.campo-password input { flex: 1; font-family: ui-monospace, Consolas, monospace; letter-spacing: .03em; }
+.campo-password .btn { white-space: nowrap; }
+/* Rol largo ("Personal municipal (coordinador)"): puede partirse para que la tabla no desborde. */
+.dash-table .badge { white-space: normal; }
+/* Si no hay espacio, el botón de la llave pasa debajo en vez de desbordar la tabla. */
+.acciones { display: flex; flex-wrap: wrap; gap: 6px; }
+.acciones .btn { white-space: nowrap; }
 .form-card { margin-bottom: 18px; }
 .section-title {
   font-size: 16px;

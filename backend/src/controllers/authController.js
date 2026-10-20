@@ -103,13 +103,25 @@ async function login(req, res) {
   }
 }
 
+// Respuesta de recuperación en producción: la misma exista o no el correo, para no revelar
+// qué cuentas están registradas. La recuperación la hace el administrador desde
+// Administración → Usuarios (POST /api/admin/usuarios/restablecer-password).
+const MENSAJE_RECUPERACION_PRODUCCION =
+  'La recuperación automática por correo todavía no está disponible. Si tu correo está registrado, ' +
+  'pedile al administrador de EcoReporte GT que restablezca tu contraseña.';
+
 // POST /api/auth/recuperar — solicitud de recuperación de contraseña.
-// En esta fase se simula: valida el correo y devuelve un token temporal.
-// En producción, se enviaría un enlace por correo electrónico.
+// La app todavía no envía correos. En desarrollo se simula: valida el correo y devuelve un token
+// temporal para completar el flujo. En producción (NODE_ENV=production) NUNCA se devuelve el
+// token: con él cualquiera podría cambiar la contraseña de una cuenta conociendo su correo.
 async function recuperarPassword(req, res) {
   const { correo } = req.body;
   if (!correo) {
     return res.status(400).json({ error: 'El correo es obligatorio.' });
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    return res.json({ mensaje: MENSAJE_RECUPERACION_PRODUCCION });
   }
 
   try {
@@ -165,4 +177,42 @@ async function restablecerPassword(req, res) {
   }
 }
 
-module.exports = { registro, login, recuperarPassword, restablecerPassword };
+// PUT /api/cuenta/password — el usuario autenticado cambia su propia contraseña.
+// Body: { password_actual, password_nueva }. Pide la actual para que una sesión abierta en un
+// equipo ajeno no baste para cambiarla. Si la actual no coincide responde 400 (no 401), para que
+// el frontend no lo confunda con una sesión vencida y cierre la sesión.
+async function cambiarPassword(req, res) {
+  const { password_actual, password_nueva } = req.body;
+  if (!password_actual || !password_nueva) {
+    return res.status(400).json({ error: 'La contraseña actual y la nueva son obligatorias.' });
+  }
+  if (password_nueva.length < 6) {
+    return res.status(400).json({ error: 'La contraseña nueva debe tener al menos 6 caracteres.' });
+  }
+  if (password_nueva === password_actual) {
+    return res.status(400).json({ error: 'La contraseña nueva debe ser distinta de la actual.' });
+  }
+
+  try {
+    const result = await query('SELECT password_hash, estado FROM usuario WHERE id_usuario = $1', [
+      req.usuario.id_usuario,
+    ]);
+    if (result.rows.length === 0 || !result.rows[0].estado) {
+      return res.status(403).json({ error: 'La cuenta no existe o está desactivada.' });
+    }
+    if (!(await bcrypt.compare(password_actual, result.rows[0].password_hash))) {
+      return res.status(400).json({ error: 'La contraseña actual no es correcta.' });
+    }
+
+    const password_hash = await bcrypt.hash(password_nueva, 10);
+    await query('UPDATE usuario SET password_hash = $1 WHERE id_usuario = $2', [
+      password_hash, req.usuario.id_usuario,
+    ]);
+    res.json({ mensaje: 'Contraseña actualizada correctamente.' });
+  } catch (err) {
+    console.error('Error al cambiar la contraseña:', err.message);
+    res.status(500).json({ error: 'Error al cambiar la contraseña.' });
+  }
+}
+
+module.exports = { registro, login, recuperarPassword, restablecerPassword, cambiarPassword };

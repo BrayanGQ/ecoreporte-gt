@@ -15,9 +15,11 @@
 const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
-const { pool } = require('./config/db');
+const { pool } = require('./config/db'); // también carga el .env
+const { passwordDemo } = require('./utils/passwordDemo');
 
-const PASSWORD = 'password123';
+// Contraseña de las cuentas de la demostración: DEMO_PASSWORD o, si no está definida, password123.
+const PASSWORD = passwordDemo();
 const INICIO = new Date(2026, 8, 1, 7, 0); // 1 de septiembre de 2026, 07:00
 const AHORA = new Date();
 const CARPETA_FOTOS = path.join(__dirname, '..', '..', 'database', 'demo_fotos');
@@ -460,7 +462,10 @@ async function resumen() {
     FROM usuario u JOIN rol r USING (id_rol) LEFT JOIN municipalidad m USING (id_municipalidad)
     ORDER BY array_position(ARRAY['administrador','personal_municipal','encargado_cuadrilla','ciudadano'], r.nombre_rol::text),
              m.nombre NULLS LAST, u.nombre_completo`);
-  console.log(`\nUsuarios (contraseña de los nuevos: ${PASSWORD}):`);
+  // Si la contraseña viene de DEMO_PASSWORD no se muestra: es un dato sensible.
+  console.log(process.env.DEMO_PASSWORD
+    ? '\nUsuarios (contraseña de los nuevos: la de DEMO_PASSWORD):'
+    : `\nUsuarios (contraseña de los nuevos: ${PASSWORD}):`);
   console.table(usuarios.rows);
 }
 

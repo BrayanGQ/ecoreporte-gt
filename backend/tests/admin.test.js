@@ -102,3 +102,47 @@ describe('Administración', () => {
     expect(mixco.estado_activo).toBe(mixcoActivaAlInicio);
   });
 });
+
+describe('Restablecer contraseña (administrador)', () => {
+  // Cuenta de ciudadano creada por la prueba (se borra al terminar: correo prueba.*@prueba.test).
+  async function ciudadanoDePrueba(password) {
+    const correo = CORREO_PRUEBA('restablecer');
+    const res = await api().post('/api/auth/registro').send({ nombre_completo: 'Ciudadano Olvidadizo', correo, password });
+    expect(res.status).toBe(201);
+    return correo;
+  }
+  const login = (correo, password) => api().post('/api/auth/login').send({ correo, password });
+
+  test('CP-38 El admin restablece la contraseña de un ciudadano buscándolo por correo', async () => {
+    const correo = await ciudadanoDePrueba('original123');
+
+    const res = await api().post('/api/admin/usuarios/restablecer-password').set(await bearer(USUARIOS.admin))
+      .send({ correo: correo.toUpperCase(), password: 'Temporal456' }); // sin distinguir mayúsculas
+    expect(res.status).toBe(200);
+    expect(res.body.usuario).toMatchObject({ correo, nombre_rol: 'ciudadano' });
+    expect(res.body.usuario).not.toHaveProperty('password_hash');
+
+    expect((await login(correo, 'original123')).status).toBe(401);
+    expect((await login(correo, 'Temporal456')).status).toBe(200);
+  });
+
+  test('CP-39 Restablecer contraseña: solo el admin, con correo existente y contraseña válida', async () => {
+    const correo = await ciudadanoDePrueba('original123');
+    const ruta = '/api/admin/usuarios/restablecer-password';
+
+    const coordinador = await api().post(ruta).set(await bearer(USUARIOS.coordGuatemala)).send({ correo, password: 'Intruso123' });
+    const sinToken = await api().post(ruta).send({ correo, password: 'Intruso123' });
+    const inexistente = await api().post(ruta).set(await bearer(USUARIOS.admin)).send({ correo: 'nadie@prueba.test', password: 'Temporal456' });
+    const corta = await api().post(ruta).set(await bearer(USUARIOS.admin)).send({ correo, password: '123' });
+    const sinCorreo = await api().post(ruta).set(await bearer(USUARIOS.admin)).send({ password: 'Temporal456' });
+
+    expect(coordinador.status).toBe(403);
+    expect(sinToken.status).toBe(401);
+    expect(inexistente.status).toBe(404);
+    expect(inexistente.body.error).toBe('No existe una cuenta con ese correo.');
+    expect(corta.status).toBe(400);
+    expect(sinCorreo.status).toBe(400);
+    // Ningún intento cambió la contraseña.
+    expect((await login(correo, 'original123')).status).toBe(200);
+  });
+});
