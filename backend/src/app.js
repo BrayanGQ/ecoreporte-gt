@@ -45,6 +45,9 @@ app.use('/api', routes);
 // así que cualquier GET que no sea de la API devuelve index.html y la app resuelve la ruta.
 if (hayFrontend) {
   app.get(/^(?!\/api(\/|$)).*/, (req, res) => {
+    // El portal municipal es un enlace privado: que los buscadores no lo indexen
+    // (también lo excluyen robots.txt y la meta robots que pone el router).
+    if (/^\/municipal(\/|$)/.test(req.path)) res.set('X-Robots-Tag', 'noindex, nofollow');
     res.sendFile(INDEX_HTML);
   });
 }

@@ -45,7 +45,9 @@ api.interceptors.response.use(
       redirigiendo = true;
       cerrarSesionLocal();
       try {
-        await router.push({ name: loginDelPortal(usuario), query: { sesion: 'expirada' } });
+        // Al volver a iniciar sesión, Login.vue regresa a la pantalla donde estaba.
+        const actual = router.currentRoute.value.fullPath;
+        await router.push({ name: loginDelPortal(usuario), query: { sesion: 'expirada', redirect: actual } });
       } finally {
         redirigiendo = false;
       }

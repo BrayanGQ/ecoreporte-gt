@@ -1,6 +1,9 @@
 // Controlador de reportes: registro ciudadano, consulta, listado y gestión municipal.
 const { query, pool } = require('../config/db');
 const { SIN_COBERTURA, leerCoordenadas, municipalidadEnPunto } = require('../utils/ubicacion');
+const {
+  avisosNuevoReporte, avisosCambio, prepararSinRiesgo, despachar,
+} = require('../services/avisosCorreo');
 
 // Genera un código de seguimiento legible, por ejemplo ER-2026-0001.
 function generarCodigo(id) {
@@ -103,7 +106,12 @@ async function crearReporte(req, res) {
       );
     }
 
+    // Correos al ciudadano con cuenta y a los coordinadores: se preparan aquí y salen después
+    // del COMMIT, sin esperar a Brevo.
+    const correos = await prepararSinRiesgo(client, (ejecutar) => avisosNuevoReporte(ejecutar, idReporte));
+
     await client.query('COMMIT');
+    despachar(correos);
     res.status(201).json({
       mensaje: 'Reporte registrado correctamente.',
       id_reporte: idReporte,
@@ -361,7 +369,8 @@ function textoOpcional(valor, campo) {
 
 // Ejecuta una acción del flujo en una transacción: bloquea el reporte, valida el alcance
 // del usuario, deja que `decidir` valide la transición y devuelva el cambio, y luego
-// actualiza el reporte, registra el historial y notifica al ciudadano.
+// actualiza el reporte, registra el historial y notifica al ciudadano (en la app y por correo;
+// el correo también le avisa al encargado asignado, ver services/avisosCorreo.js).
 // `decidir(reporte, client)` devuelve
 // { estado, id_usuario_asignado?, comentario, mensaje_ciudadano, evidencias_municipales? }.
 async function ejecutarAccion(req, res, decidir) {
@@ -431,7 +440,15 @@ async function ejecutarAccion(req, res, decidir) {
       );
     }
 
+    const correos = await prepararSinRiesgo(client, (ejecutar) => avisosCambio(ejecutar, id, {
+      estadoAnterior: reporte.estado_actual,
+      estado: cambio.estado,
+      motivo: cambio.comentario,
+      idEncargado: cambio.id_usuario_asignado,
+    }));
+
     await client.query('COMMIT');
+    despachar(correos);
     res.json({ mensaje: 'Reporte actualizado correctamente.', estado: cambio.estado });
   } catch (err) {
     await client.query('ROLLBACK');

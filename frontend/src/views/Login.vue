@@ -17,6 +17,21 @@ const esMunicipal = computed(() => route.meta.portal === 'municipal');
 // Llega con ?sesion=expirada cuando el token venció (ver utils/sesion.js y api.js).
 const sesionExpirada = computed(() => route.query.sesion === 'expirada');
 
+const ROLES_MUNICIPALES = ['personal_municipal', 'encargado_cuadrilla', 'administrador'];
+
+// A dónde ir después de iniciar sesión. Si el router mandó aquí desde una ruta protegida
+// (?redirect=/municipal/panel/reporte/12, p. ej. el enlace de un correo), se vuelve a ella,
+// siempre que sea una ruta interna del portal que le corresponde al rol. Si no, el inicio del rol.
+function destinoTrasLogin(rol) {
+  const municipal = ROLES_MUNICIPALES.includes(rol);
+  const inicio = municipal ? '/municipal/panel' : '/portal';
+  const redirect = route.query.redirect;
+  const interna = typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')
+    && !redirect.includes('\\');
+  const prefijo = municipal ? '/municipal/panel' : '/portal/';
+  return interna && redirect.startsWith(prefijo) ? redirect : inicio;
+}
+
 async function iniciarSesion() {
   error.value = '';
   cargando.value = true;
@@ -25,12 +40,7 @@ async function iniciarSesion() {
     localStorage.setItem('token', data.token);
     localStorage.setItem('usuario', JSON.stringify(data.usuario));
     window.dispatchEvent(new Event('storage-updated'));
-    // Redirige según el rol.
-    if (['personal_municipal', 'encargado_cuadrilla', 'administrador'].includes(data.usuario.rol)) {
-      router.push('/municipal/panel');
-    } else {
-      router.push('/portal');
-    }
+    router.push(destinoTrasLogin(data.usuario.rol));
   } catch (err) {
     error.value = err.response?.data?.error || 'Error al iniciar sesión.';
   } finally {
@@ -65,15 +75,17 @@ async function iniciarSesion() {
         <i class="bx bx-log-in"></i> {{ cargando ? 'Ingresando...' : 'Ingresar' }}
       </button>
 
-      <div class="links-footer">
-        <template v-if="!esMunicipal">
-          <router-link to="/portal/recuperar">¿Olvidaste tu contraseña?</router-link>
-          <br /><br />
-          ¿No tenés cuenta? <router-link to="/portal/registro">Registrate</router-link>
-          <br /><br />
-        </template>
+      <!-- El login municipal no enlaza al portal ciudadano (es un enlace privado aparte). -->
+      <div v-if="!esMunicipal" class="links-footer">
+        <router-link to="/portal/recuperar">¿Olvidaste tu contraseña?</router-link>
+        <br /><br />
+        ¿No tenés cuenta? <router-link to="/portal/registro">Registrate</router-link>
+        <br /><br />
         <router-link to="/"><i class="bx bx-arrow-back"></i> Volver al inicio</router-link>
       </div>
+      <p v-else class="links-footer ayuda">
+        ¿Olvidaste tu contraseña? Pedile al administrador de EcoReporte GT que la restablezca.
+      </p>
     </div>
   </component>
 </template>
@@ -82,4 +94,5 @@ async function iniciarSesion() {
 .title { display: flex; align-items: center; gap: 10px; }
 .links-footer { margin-top: 18px; font-size: 13px; text-align: center; }
 .links-footer a { display: inline-flex; align-items: center; gap: 4px; }
+.ayuda { color: var(--text-secondary); line-height: 1.5; }
 </style>

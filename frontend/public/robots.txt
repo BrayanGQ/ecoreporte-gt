@@ -1,5 +1,7 @@
 # EcoReporte GT
-# Se permite indexar todo el sitio. Los paneles municipales requieren sesión, así que los
-# buscadores solo ven su pantalla de acceso.
+# El portal ciudadano (/ y /portal/...) es público y se puede indexar.
+# El portal municipal (/municipal/...) es un enlace privado para el personal: no se indexa
+# (además lleva meta robots noindex y el encabezado X-Robots-Tag).
 User-agent: *
 Allow: /
+Disallow: /municipal

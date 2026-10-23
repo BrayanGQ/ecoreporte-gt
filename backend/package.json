@@ -36,6 +36,7 @@
       "<rootDir>/tests/setup/entorno.js"
     ],
     "setupFilesAfterEnv": [
+      "<rootDir>/tests/setup/mock-correo.js",
       "<rootDir>/tests/setup/cerrar-pool.js"
     ],
     "testTimeout": 30000,

@@ -46,9 +46,10 @@ Requisitos: PostgreSQL con PostGIS y las dependencias del backend instaladas (`n
 | `backend/scripts/preparar-bd-pruebas.js` | Prepara `ecoreporte_test` (`npm run test:bd`). |
 | `backend/scripts/entorno-pruebas.js` | Carga `.env.test` y verifica que la base termine en `_test`. |
 | `backend/tests/setup/entorno.js` | *setupFiles* de Jest: carga `.env.test` **antes** de que se importe `src/config/db.js`. |
+| `backend/tests/setup/mock-correo.js` | *setupFilesAfterEnv*: reemplaza `src/services/correo.js` por un mock en todas las pruebas, para que ninguna mande correos reales. Va antes de `cerrar-pool.js`, que ya carga la app. |
 | `backend/tests/setup/cerrar-pool.js` | *setupFilesAfterEnv*: borra los datos de prueba antes y después de cada archivo y cierra el pool al final. |
 | `backend/tests/helpers.js` | Usuarios demo, inicio de sesión, puntos de prueba y creación de reportes. |
-| `backend/tests/*.test.js` | Un archivo por módulo: `auth`, `reportes`, `flujo`, `permisos`, `admin`. |
+| `backend/tests/*.test.js` | Un archivo por módulo: `auth`, `reportes`, `flujo`, `permisos`, `admin`, `correo`. |
 
 - **Usuarios** (de `backend/src/demo.js`, contraseña `password123`): coordinadora de Guatemala
   (`ana.morales`), cuadrillas de Guatemala (`carlos.perez`, `jose.hernandez`), coordinador de
@@ -66,7 +67,7 @@ Requisitos: PostgreSQL con PostGIS y las dependencias del backend instaladas (`n
 
 ## Casos de prueba
 
-Ejecución sobre `ecoreporte_test`: CP-01 a CP-35 el 13/10/2026; CP-36 y CP-37 tras la corrección de D-01; CP-38 a CP-42 el 20/10/2026 (corrección de D-02, restablecimiento por el administrador y cambio de la contraseña propia). La suite completa (42 casos) se volvió a ejecutar el 20/10/2026 con todos los casos aprobados.
+Ejecución sobre `ecoreporte_test`: CP-01 a CP-35 el 13/10/2026; CP-36 y CP-37 tras la corrección de D-01; CP-38 a CP-42 el 20/10/2026 (corrección de D-02, restablecimiento por el administrador y cambio de la contraseña propia); CP-43 a CP-54 el 22/10/2026 (notificaciones por correo). La suite completa (54 casos) se volvió a ejecutar el 22/10/2026 con todos los casos aprobados.
 
 | ID | Módulo | Descripción | Resultado esperado | Resultado obtenido |
 |---|---|---|---|---|
@@ -112,18 +113,32 @@ Ejecución sobre `ecoreporte_test`: CP-01 a CP-35 el 13/10/2026; CP-36 y CP-37 t
 | CP-40 | Autenticación | Recuperación de contraseña con `NODE_ENV=production` (correo existente e inexistente) y en desarrollo | Producción: 200 sin `token_recuperacion` y la misma respuesta para ambos correos. Desarrollo: 200 con token | Aprobado |
 | CP-41 | Autenticación | Un usuario con sesión cambia su contraseña (`PUT /api/cuenta/password`) | 200; la contraseña anterior da 401 y la nueva 200 | Aprobado |
 | CP-42 | Autenticación | Cambio de contraseña sin sesión, con la actual incorrecta, nueva corta, igual a la actual o incompleto | Sin sesión 401; los demás 400 (la actual incorrecta da 400 y no 401, para no cerrar la sesión en el frontend); la contraseña no cambia | Aprobado |
+| CP-43 | Correo | Ciudadano con sesión registra un reporte en Guatemala | 201; un correo al ciudadano con el código en el asunto y el enlace `/portal/consultar?codigo=...` (HTML y texto), y uno a cada coordinador **activo** de Guatemala con el enlace `/municipal/panel/reporte/:id`; el coordinador inactivo no recibe nada | Aprobado |
+| CP-44 | Correo | Reporte anónimo | 201; solo los coordinadores reciben correo (indica "Reporte anónimo"); ninguno a un ciudadano | Aprobado |
+| CP-45 | Correo | Descripción con `<script>`, `<b>`, comillas y `&` | En el HTML aparece escapada (`&lt;script&gt;...`), sin etiquetas activas; el texto plano la conserva tal cual | Aprobado |
+| CP-46 | Correo | El coordinador asigna el reporte a una cuadrilla | 200; correo a la cuadrilla con tipo, descripción, municipalidad, enlace "Cómo llegar" de Google Maps con la latitud y longitud del reporte y enlace al reporte en el panel; correo al ciudadano "cambió a: Asignado" con el enlace de consulta | Aprobado |
+| CP-47 | Correo | Reasignación a otra cuadrilla | 200; solo el encargado nuevo recibe "Te reasignaron el reporte ..."; el ciudadano no (el estado no cambia) | Aprobado |
+| CP-48 | Correo | La cuadrilla inicia la atención y resuelve con foto | 200 y 200; el ciudadano recibe "cambió a: En atención" y "cambió a: Resuelto", en ese orden | Aprobado |
+| CP-49 | Correo | El coordinador descarta un reporte con motivo que contiene `<...>` | 200; el ciudadano recibe "cambió a: Descartado" con el motivo escapado en el HTML y completo en el texto plano | Aprobado |
+| CP-50 | Correo | Reporte anónimo: asignar, iniciar y descartar otro | Al asignar solo la cuadrilla recibe correo; iniciar y descartar no envían ninguno | Aprobado |
+| CP-51 | Correo | Acción rechazada (descartar sin motivo) | 400 y ningún correo | Aprobado |
+| CP-52 | Correo | Brevo falla: `enviarCorreo` rechaza la promesa al registrar y lanza un error síncrono al asignar | Registrar responde 201 con el mismo cuerpo de siempre y asignar 200 `{ mensaje, estado: 'asignado' }`; el reporte queda asignado; cada falla queda registrada en `console.error` | Aprobado |
+| CP-53 | Correo (servicio) | `enviarCorreo` real con `NODE_ENV=test`; en producción hacia una cuenta demo (`@ecoreporte.gt`); y en producción sin `BREVO_API_KEY` | `{ enviado: false, motivo }` y no se llama a `fetch` | Aprobado |
+| CP-54 | Correo (servicio) | `enviarCorreo` real configurado (`fetch` mockeado) | `POST https://api.brevo.com/v3/smtp/email` con el header `api-key`, remitente "EcoReporte GT" por defecto, destinatario, asunto, HTML y texto; si Brevo responde 401, la función lanza "Brevo respondió 401" | Aprobado |
 
 CP-36 y CP-37 se agregaron para el defecto D-01. Antes de la corrección ambos fallaban (el
 reporte quedaba a nombre del id enviado en el cuerpo); después de la corrección pasan.
 CP-38 a CP-40 se agregaron con la corrección del defecto D-02 y el restablecimiento de
 contraseñas por el administrador. CP-41 y CP-42 cubren el cambio de la contraseña propia
-(*Mi cuenta*).
+(*Mi cuenta*). CP-43 a CP-54 cubren las notificaciones por correo (`tests/correo.test.js`):
+CP-43 a CP-52 revisan las llamadas al servicio mockeado y CP-53 y CP-54 prueban el servicio real
+de `src/services/correo.js` con `fetch` mockeado, sin conectarse a Brevo.
 
 ## Resumen
 
 | Total de casos | Aprobados | Fallidos |
 |---|---|---|
-| 42 | 42 | 0 |
+| 54 | 54 | 0 |
 
 ## Defectos encontrados y corregidos
 

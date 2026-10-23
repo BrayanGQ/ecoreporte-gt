@@ -1,8 +1,9 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { notificacionService } from '../services/api';
 
+const route = useRoute();
 const router = useRouter();
 const usuario = ref(JSON.parse(localStorage.getItem('usuario') || 'null'));
 const notificaciones = ref([]);
@@ -68,10 +69,10 @@ onUnmounted(() => document.removeEventListener('click', cerrarSiEsExterno));
 
 <template>
   <nav class="navbar">
-    <div class="brand">
+    <router-link to="/" class="brand" title="Inicio de EcoReporte GT">
       <i class="bx bx-leaf logo"></i>
       <span>EcoReporte GT</span>
-    </div>
+    </router-link>
     <div class="links">
       <router-link to="/portal"><i class="bx bx-trash"></i> Reportar</router-link>
       <router-link to="/portal/mapa"><i class="bx bx-map-alt"></i> Mapa</router-link>
@@ -113,7 +114,8 @@ onUnmounted(() => document.removeEventListener('click', cerrarSiEsExterno));
       <router-link v-else to="/portal/login" class="login-link">
         <i class="bx bx-user"></i> ¿Sos ciudadano registrado? Iniciá sesión
       </router-link>
-      <router-link to="/" class="volver"><i class="bx bx-home-alt"></i> Volver al inicio</router-link>
+      <!-- Lleva a la portada ciudadana; en la portada misma no hace falta. -->
+      <router-link v-if="route.name !== 'inicio'" to="/" class="volver"><i class="bx bx-home-alt"></i> Volver al inicio</router-link>
     </div>
   </nav>
   <!-- Región principal del portal ciudadano (accesibilidad: landmark <main>). -->
@@ -140,6 +142,7 @@ onUnmounted(() => document.removeEventListener('click', cerrarSiEsExterno));
   font-weight: 700;
   font-size: 17px;
   margin-right: auto;
+  text-decoration: none;
 }
 .brand .logo {
   font-size: 20px;

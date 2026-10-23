@@ -1,6 +1,9 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { reporteService } from '../services/api';
+
+const route = useRoute();
 
 const codigo = ref('');
 const reporte = ref(null);
@@ -24,6 +27,19 @@ async function consultar() {
     cargando.value = false;
   }
 }
+
+// Los correos enlazan a /portal/consultar?codigo=ER-...: con el código en la URL se consulta
+// directamente (también si cambia la URL estando ya en esta vista).
+watch(
+  () => route.query.codigo,
+  (valor) => {
+    if (typeof valor === 'string' && valor.trim()) {
+      codigo.value = valor.trim();
+      consultar();
+    }
+  },
+  { immediate: true }
+);
 
 function fecha(f) {
   return new Date(f).toLocaleString('es-GT');

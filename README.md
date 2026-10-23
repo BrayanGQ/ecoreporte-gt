@@ -33,6 +33,7 @@ ecoreporte/
 │   │   ├── middleware/auth.js  Verificación de JWT y roles
 │   │   ├── controllers/        Lógica de negocio
 │   │   ├── routes/index.js     Rutas de la API
+│   │   ├── services/           Correos: envío con Brevo, plantilla y avisos del flujo
 │   │   ├── utils/ubicacion.js  Municipalidad según la ubicación (PostGIS)
 │   │   ├── seed.js             Contraseñas de los usuarios demo base (npm run seed)
 │   │   └── demo.js             Datos de demostración (npm run demo)
@@ -115,6 +116,10 @@ Editá `backend/.env`:
 | `DATABASE_URL` | Solo para usar una base en la nube (Neon): si está definida, reemplaza a las `DB_*` (ver "Despliegue") | — (vacía en local) |
 | `NODE_ENV` | `production` en el servidor de producción | — |
 | `DEMO_PASSWORD` | Contraseña que asignan `npm run seed` y `npm run demo` a los usuarios de demostración (mínimo 6 caracteres) | `password123` |
+| `BREVO_API_KEY` | Clave de la API de Brevo para enviar los correos. Sin ella no se envía ninguno (ver "Notificaciones por correo") | — (vacía: sin correos) |
+| `CORREO_REMITENTE` | Correo remitente, verificado en Brevo | — |
+| `CORREO_REMITENTE_NOMBRE` | Nombre visible del remitente | `EcoReporte GT` |
+| `APP_URL` | Dirección pública del frontend, para los enlaces de los correos | `http://localhost:5173` |
 
 Asigná las contraseñas de los usuarios demo base y arrancá el servidor:
 
@@ -143,6 +148,20 @@ npm run dev
 ```
 
 Abrí http://localhost:5173. Vite redirige las llamadas a `/api` al backend en el puerto 3000.
+
+La app tiene dos enlaces de entrada:
+
+| Enlace | Para quién | Qué abre |
+|---|---|---|
+| `/` (público) | Ciudadanos | La portada del portal ciudadano: Reportar, Mapa y Consultar. Las rutas `/portal/...` siguen funcionando igual. |
+| `/municipal` (privado) | Personal municipal, cuadrillas y administrador | Redirige a `/municipal/login`. |
+
+El portal ciudadano no tiene enlaces al municipal, y el login municipal no enlaza al ciudadano:
+el enlace municipal se le comparte al personal por aparte. Las rutas `/municipal` no se
+indexan: `robots.txt` las excluye (`Disallow: /municipal`), el router pone
+`<meta name="robots" content="noindex, nofollow">` y el backend responde con el encabezado
+`X-Robots-Tag: noindex, nofollow`. Si alguien sin sesión abre una ruta protegida (por ejemplo
+`/municipal/panel/reporte/12`, el enlace de un correo), va al login y, al entrar, vuelve a esa ruta.
 
 Para generar la versión de producción: `npm run build` (queda en `frontend/dist/`).
 
@@ -224,7 +243,7 @@ Todos usan la contraseña **password123**, salvo que `DEMO_PASSWORD` defina otra
 **Ciudadano registrado**
 - Todo lo anterior; sus reportes quedan asociados a su cuenta.
 - *Mis reportes*: estado, historial y, cuando el reporte se resuelve, las fotos de la limpieza.
-- Notificaciones de cada cambio de estado de sus reportes.
+- Notificaciones de cada cambio de estado de sus reportes, en la app y por correo.
 - Registro de cuenta y recuperación de contraseña.
 - *Mi cuenta* (clic en su nombre, en la barra superior): datos de la cuenta y cambio de la
   contraseña propia.
@@ -234,9 +253,12 @@ Todos usan la contraseña **password123**, salvo que `DEMO_PASSWORD` defina otra
 - Asignar un reporte recibido a un encargado de cuadrilla, reasignarlo mientras siga asignado, o
   descartarlo con un motivo obligatorio.
 - Estadísticas de su municipalidad: tarjetas de resumen, gráfica por estado y por tipo, filtro por fechas.
+- Correo con el enlace al reporte cada vez que entra uno nuevo en su municipalidad.
 
 **Encargado de cuadrilla** — solo reportes asignados a él
 - Panel pensado para el celular: pendientes, en atención y resueltos, con enlace "Cómo llegar".
+- Correo cada vez que le asignan (o reasignan) un reporte, con los datos, "Cómo llegar" y el
+  enlace al reporte en el panel.
 - Iniciar la atención y marcar el reporte como resuelto con 1 a 5 fotos de la limpieza
   (obligatorias), tomadas con la cámara del celular.
 
@@ -256,6 +278,43 @@ lateral, para ver sus datos y cambiar su propia contraseña.
 `resuelto` (cuadrilla, con fotos). Desde `recibido`, el coordinador también puede pasarlo a
 `descartado`. El backend valida cada transición y el rol de quien la hace; cada cambio queda en
 el historial y se notifica al ciudadano.
+
+---
+
+## Notificaciones por correo
+
+El backend envía correos con la **API HTTP de Brevo** (`backend/src/services/correo.js`). Se usa
+la API y no SMTP porque el plan gratis de Render bloquea las conexiones SMTP.
+
+| Cuándo | A quién | Contenido |
+|---|---|---|
+| Se registra un reporte | Al ciudadano que lo hizo con su cuenta | Código de seguimiento y enlace a `APP_URL/portal/consultar?codigo=ER-...` |
+| Se registra un reporte | A los coordinadores (personal municipal activo) de la municipalidad del reporte | Tipo, descripción y enlace a `APP_URL/municipal/panel/reporte/:id` |
+| El reporte cambia de estado (asignado, en atención, resuelto, descartado) | Al ciudadano con cuenta | Estado nuevo (y el motivo, si se descartó) y el enlace de consulta |
+| Se asigna o reasigna el reporte | Al encargado de cuadrilla asignado | Tipo, descripción, municipalidad, "Cómo llegar" (Google Maps) y enlace al reporte en el panel |
+
+- Los reportes **anónimos** no envían correo al ciudadano (no hay a quién). Una reasignación no
+  cambia el estado, así que tampoco le escribe al ciudadano.
+- Cada correo tiene versión HTML (adaptable al celular, con los colores de la app) y de texto
+  plano. Todo lo que escriben los usuarios (descripción, nombres, motivo) se escapa en el HTML.
+- Los correos se preparan dentro de la transacción y se envían **después del COMMIT, sin
+  esperarlos**: la respuesta de la API no depende de Brevo. Si Brevo falla, solo queda el error
+  en la consola del servidor.
+- Sin `BREVO_API_KEY` (o con `NODE_ENV=test`, como en las pruebas) no se envía nada: cada
+  correo deja solo una línea `[correo] No se envía (...)` en la consola.
+- Nunca se escribe a las cuentas de demostración (`@ecoreporte.gt`) ni a las de las pruebas
+  (`@prueba.test`): no son buzones reales y los rebotes dañarían la reputación del remitente.
+  Para recibir los avisos, el personal y los ciudadanos necesitan cuentas con su correo real.
+
+**Configuración:**
+
+1. Creá una cuenta en https://www.brevo.com.
+2. Verificá el remitente en *Senders, Domains & Dedicated IPs → Senders* (Brevo manda un
+   código a ese correo).
+3. Creá una clave en *SMTP & API → API Keys*.
+4. En `backend/.env` (local) o en las variables de Render, definí `BREVO_API_KEY`,
+   `CORREO_REMITENTE` (el remitente verificado) y `APP_URL`. `CORREO_REMITENTE_NOMBRE` es
+   opcional. La clave es secreta: nunca la subas al repositorio.
 
 ---
 
@@ -305,7 +364,7 @@ filtrar además por `id_municipalidad`.
 
 ## Pruebas
 
-El backend tiene 42 pruebas de integración automatizadas (Jest + Supertest) que corren contra una
+El backend tiene 54 pruebas automatizadas (Jest + Supertest) que corren contra una
 base de datos aparte, `ecoreporte_test`, sin tocar los datos de la aplicación. Desde `backend/`:
 
 ```bash
@@ -315,6 +374,9 @@ npm test                         # corre las pruebas
 ```
 
 Casos, resultados y defectos: [docs/PRUEBAS.md](docs/PRUEBAS.md).
+
+El servicio de correo está mockeado en todas las pruebas (`tests/setup/mock-correo.js`): ninguna
+manda correos reales.
 
 Las pruebas siempre usan la base local de `.env.test`: aunque `backend/.env` tenga una
 `DATABASE_URL` (por ejemplo la de Neon), se ignora al correr `npm test` o `npm run test:bd`.
@@ -376,6 +438,10 @@ Creá un **Web Service** conectado al repositorio, con estos valores:
 | `JWT_EXPIRES_IN` | `8h` |
 | `NODE_ENV` | `production` |
 | `NODE_VERSION` | `22` (versión de Node que usa Render; el proyecto se probó con 22.20.0) |
+| `BREVO_API_KEY` | Clave de la API de Brevo (sin ella la app funciona, pero no envía correos) |
+| `CORREO_REMITENTE` | Remitente verificado en Brevo |
+| `CORREO_REMITENTE_NOMBRE` | `EcoReporte GT` (opcional) |
+| `APP_URL` | La dirección del servicio, por ejemplo `https://ecoreporte-gt.onrender.com` (sin barra final) |
 
 `PORT` no hace falta: Render la define y el backend la usa. `NODE_ENV=production` es
 obligatoria: además de identificar el entorno, hace que la recuperación de contraseña no
@@ -386,7 +452,9 @@ solo la usan `npm run seed` y `npm run demo`, que se corren desde tu equipo (pas
 
 - `https://<tu-servicio>.onrender.com/api/salud` responde
   `{"mensaje":"API de EcoReporte GT en funcionamiento.","version":"1.0.0"}`.
-- `https://<tu-servicio>.onrender.com/` muestra la app, y recargar `/portal/mapa` no da 404.
+- `https://<tu-servicio>.onrender.com/` muestra la portada del portal ciudadano, y recargar
+  `/portal/mapa` no da 404.
+- `https://<tu-servicio>.onrender.com/municipal` lleva al login municipal.
 
 ---
 
@@ -399,7 +467,8 @@ solo la usan `npm run seed` y `npm run demo`, que se corren desde tu equipo (pas
   8 horas (`JWT_EXPIRES_IN`). Si venció, el frontend borra la sesión; si una ruta protegida
   responde 401, lleva al usuario al login de su portal con el aviso "Tu sesión expiró, iniciá
   sesión de nuevo.". Las rutas públicas siguen funcionando sin sesión.
-- **Recuperación de contraseña:** en esta versión no se envían correos. En desarrollo, el backend
+- **Recuperación de contraseña:** todavía no envía correo (los correos de la app son solo los
+  avisos del flujo de reportes). En desarrollo, el backend
   devuelve el token de recuperación en la respuesta para poder completar el flujo. Con
   `NODE_ENV=production` nunca lo devuelve: responde siempre "La recuperación automática por
   correo todavía no está disponible. Si tu correo está registrado, pedile al administrador de
