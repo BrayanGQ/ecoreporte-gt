@@ -63,8 +63,8 @@ async function peticion(metodo, ruta, { token, cuerpo } = {}) {
   const res = await fetch(BASE + ruta, opciones);
   const texto = await res.text();
   const ms = performance.now() - inicio;
-  let datos = null;
-  try { datos = JSON.parse(texto); } catch (e) { datos = texto; }
+  let datos;
+  try { datos = JSON.parse(texto); } catch { datos = texto; }
   return { ms, status: res.status, datos };
 }
 
@@ -111,7 +111,7 @@ function levantarBackend() {
 function powershell(comando) {
   try {
     return execSync(`powershell -NoProfile -Command "${comando}"`, { encoding: 'utf8' }).trim();
-  } catch (e) {
+  } catch {
     return null;
   }
 }

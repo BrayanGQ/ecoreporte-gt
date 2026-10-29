@@ -7,6 +7,7 @@ async function tiposIncidencia(req, res) {
     const r = await query('SELECT id_tipo_incidencia, nombre_tipo FROM tipo_incidencia ORDER BY nombre_tipo');
     res.json(r.rows);
   } catch (err) {
+    console.error('Error al obtener los tipos de incidencia:', err.message);
     res.status(500).json({ error: 'Error al obtener los tipos de incidencia.' });
   }
 }
@@ -16,6 +17,7 @@ async function estados(req, res) {
     const r = await query('SELECT id_estado, nombre_estado, orden FROM estado_reporte ORDER BY orden');
     res.json(r.rows);
   } catch (err) {
+    console.error('Error al obtener los estados:', err.message);
     res.status(500).json({ error: 'Error al obtener los estados.' });
   }
 }
@@ -27,6 +29,7 @@ async function municipalidades(req, res) {
     );
     res.json(r.rows);
   } catch (err) {
+    console.error('Error al obtener las municipalidades:', err.message);
     res.status(500).json({ error: 'Error al obtener las municipalidades.' });
   }
 }

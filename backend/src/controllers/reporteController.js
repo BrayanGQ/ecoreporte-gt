@@ -25,6 +25,18 @@ function puedeVerReporte(usuario, reporte) {
 
 const SIN_ACCESO = 'No tenés acceso a este reporte.';
 
+// Deshace la transacción del cliente. Si el ROLLBACK también falla (conexión perdida), devuelve
+// ese error para pasarlo a client.release(): así el pool descarta la conexión en lugar de
+// reutilizarla con la transacción abierta, y la excepción no escapa del controlador (D-14).
+async function deshacer(client) {
+  try {
+    await client.query('ROLLBACK');
+    return undefined;
+  } catch (err) {
+    return err;
+  }
+}
+
 // POST /api/reportes — registro de un reporte ciudadano (público: no exige autenticación).
 // La municipalidad se determina aquí por la ubicación (límites en PostGIS): cualquier
 // id_municipalidad que envíe el cliente se ignora.
@@ -59,7 +71,16 @@ async function crearReporte(req, res) {
     return res.status(400).json({ error: 'Se permiten como máximo 5 fotografías por reporte.' });
   }
 
-  const client = await pool.connect();
+  // D-13: sin conexión disponible, el rechazo de pool.connect() escapaba del controlador y
+  // terminaba el proceso del servidor.
+  let client;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    console.error('Error al crear reporte:', err.message);
+    return res.status(500).json({ error: 'Error al registrar el reporte.' });
+  }
+  let errorConexion;
   try {
     await client.query('BEGIN');
 
@@ -132,11 +153,11 @@ async function crearReporte(req, res) {
       municipalidad: { id_municipalidad: idMunicipalidad, nombre: muni.nombre },
     });
   } catch (err) {
-    await client.query('ROLLBACK');
+    errorConexion = await deshacer(client);
     console.error('Error al crear reporte:', err.message);
     res.status(500).json({ error: 'Error al registrar el reporte.' });
   } finally {
-    client.release();
+    client.release(errorConexion);
   }
 }
 
@@ -157,7 +178,7 @@ async function listarReportes(req, res) {
 
   if (estado) { condiciones.push(`e.nombre_estado = $${i++}`); params.push(estado); }
   if (tipo) { condiciones.push(`r.id_tipo_incidencia = $${i++}`); params.push(tipo); }
-  if (municipalidad) { condiciones.push(`r.id_municipalidad = $${i++}`); params.push(municipalidad); }
+  if (municipalidad) { condiciones.push(`r.id_municipalidad = $${i}`); params.push(municipalidad); } // último parámetro
 
   const where = condiciones.length ? 'WHERE ' + condiciones.join(' AND ') : '';
 
@@ -392,7 +413,16 @@ async function ejecutarAccion(req, res, decidir) {
     return res.status(404).json({ error: 'Reporte no encontrado.' });
   }
 
-  const client = await pool.connect();
+  // D-13: sin conexión disponible, el rechazo de pool.connect() escapaba del controlador y
+  // terminaba el proceso del servidor.
+  let client;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    console.error('Error en acción sobre el reporte:', err.message);
+    return res.status(500).json({ error: 'Error al actualizar el reporte.' });
+  }
+  let errorConexion;
   try {
     await client.query('BEGIN');
 
@@ -464,14 +494,14 @@ async function ejecutarAccion(req, res, decidir) {
     despachar(correos);
     res.json({ mensaje: 'Reporte actualizado correctamente.', estado: cambio.estado });
   } catch (err) {
-    await client.query('ROLLBACK');
+    errorConexion = await deshacer(client);
     if (err instanceof ErrorAccion) {
       return res.status(err.status).json({ error: err.message });
     }
     console.error('Error en acción sobre el reporte:', err.message);
     res.status(500).json({ error: 'Error al actualizar el reporte.' });
   } finally {
-    client.release();
+    client.release(errorConexion);
   }
 }
 

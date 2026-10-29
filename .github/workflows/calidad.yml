@@ -1,0 +1,105 @@
+# Pipeline de integración continua de EcoReporte GT (RF-05 del Plan de Aseguramiento).
+# Se ejecuta en cada push y pull request hacia main, cada lunes (para detectar vulnerabilidades
+# nuevas en las dependencias con npm audit) y a pedido.
+# Etapas: dependencias → base de pruebas PostGIS propia del job → suite con cobertura →
+# compuerta de cobertura (M-01) → análisis estático (ESLint) → auditoría de dependencias →
+# publicación de resultados.
+# Si una prueba falla, la cobertura de los módulos críticos baja del umbral, ESLint encuentra
+# errores o hay vulnerabilidades altas, el flujo falla y el cambio queda bloqueado (regla de
+# protección de la rama main). No usa secretos: ni Neon ni Brevo.
+name: Calidad EcoReporte GT
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 12 * * 1'   # lunes 06:00 hora de Guatemala
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    name: Suite automatizada y reporte de calidad
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Obtener el código
+        uses: actions/checkout@v4
+
+      - name: Preparar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # Base local del servicio postgres del job: nunca Neon ni producción.
+      - name: Configurar el entorno de pruebas
+        run: |
+          cat > .env.test <<'EOF'
+          DB_HOST=localhost
+          DB_PORT=5432
+          DB_NAME=ecoreporte_test
+          DB_USER=postgres
+          DB_PASSWORD=postgres
+          JWT_SECRET=clave_solo_para_pruebas_ci
+          JWT_EXPIRES_IN=8h
+          EOF
+
+      - name: Preparar la base de pruebas (esquema, límites PostGIS y datos demo)
+        run: npm run test:bd
+
+      # Deja qa-salida/resultados.json y qa-salida/cobertura/coverage-summary.json.
+      - name: Ejecutar la suite con medición de cobertura
+        run: npm run test:cobertura
+
+      - name: Compuerta de cobertura de módulos críticos (M-01)
+        run: npm run calidad:compuerta
+
+      - name: Análisis estático (ESLint)
+        if: always()
+        run: npm run lint
+
+      - name: Auditoría de dependencias del backend
+        if: always()
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Auditoría de dependencias del frontend
+        if: always()
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Publicar resultados y cobertura como artefacto
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultados-calidad-${{ github.run_number }}
+          path: |
+            qa-salida/resultados.json
+            qa-salida/cobertura/coverage-summary.json
+          retention-days: 90

@@ -15,3 +15,7 @@ server.log
 # Archivos del sistema
 .DS_Store
 Thumbs.db
+
+# Resultados de calidad (cobertura y salidas del pipeline): se guardan fuera del repositorio
+qa-salida/
+coverage/

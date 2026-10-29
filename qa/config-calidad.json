@@ -1,0 +1,33 @@
+{
+  "proyecto": "EcoReporte GT",
+  "version": "1.0.1",
+  "modulos_criticos": [
+    "src/controllers/authController.js",
+    "src/middleware/auth.js",
+    "src/controllers/reporteController.js",
+    "src/utils/ubicacion.js"
+  ],
+  "suites": {
+    "auth.test.js": "Autenticación",
+    "reportes.test.js": "Registro y consulta",
+    "flujo.test.js": "Flujo de estados",
+    "permisos.test.js": "Permisos por rol",
+    "admin.test.js": "Administración",
+    "correo.test.js": "Correo",
+    "criticos.test.js": "Módulos críticos (complementarias)",
+    "defectos.test.js": "Regresión de defectos",
+    "validaciones.test.js": "Regresión de defectos (administración y cuenta)",
+    "reporteria.test.js": "Reportería"
+  },
+  "suite_autorizacion": "permisos.test.js",
+  "umbrales": {
+    "M-01": 85,
+    "M-02": 95,
+    "M-03": 0,
+    "M-04": 90,
+    "M-05": 100,
+    "M-06": 70,
+    "M-07": 500,
+    "M-08": 100
+  }
+}

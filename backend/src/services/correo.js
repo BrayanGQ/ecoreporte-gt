@@ -58,7 +58,7 @@ async function enviarCorreo({ para, nombre, asunto, html, texto }) {
   let messageId = null;
   try {
     messageId = JSON.parse(cuerpo).messageId ?? null;
-  } catch (e) {
+  } catch {
     // Respuesta 2xx sin JSON: el envío igual fue aceptado.
   }
   console.log(`[correo] Enviado "${asunto}" para ${para} (Brevo ${respuesta.status}, messageId ${messageId})`);

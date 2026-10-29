@@ -1,6 +1,6 @@
 {
   "name": "ecoreporte-backend",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "API REST de EcoReporte GT — plataforma de vertederos clandestinos",
   "main": "src/index.js",
   "type": "commonjs",
@@ -12,6 +12,9 @@
     "bd:esquema": "node scripts/cargar-esquema.js",
     "test:bd": "node scripts/preparar-bd-pruebas.js",
     "test": "jest --runInBand",
+    "test:cobertura": "jest --runInBand --ci --coverage --coverageDirectory=../qa-salida/cobertura --coverageReporters=text --coverageReporters=json-summary --json --outputFile=../qa-salida/resultados.json",
+    "calidad:compuerta": "node ../qa/umbral-cobertura.js ../qa-salida/cobertura/coverage-summary.json",
+    "lint": "eslint .",
     "medir": "node scripts/medir-rendimiento.js"
   },
   "dependencies": {
@@ -23,6 +26,9 @@
     "pg": "^8.12.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
     "jest": "^30.5.2",
     "nodemon": "^3.1.4",
     "supertest": "^7.3.1"
@@ -30,7 +36,8 @@
   "jest": {
     "testEnvironment": "node",
     "roots": [
-      "<rootDir>/tests"
+      "<rootDir>/tests",
+      "<rootDir>/src"
     ],
     "setupFiles": [
       "<rootDir>/tests/setup/entorno.js"
@@ -40,6 +47,9 @@
       "<rootDir>/tests/setup/cerrar-pool.js"
     ],
     "testTimeout": 30000,
-    "verbose": true
+    "verbose": true,
+    "collectCoverageFrom": [
+      "src/**/*.js"
+    ]
   }
 }

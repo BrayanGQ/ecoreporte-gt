@@ -168,16 +168,26 @@ async function restablecerPassword(req, res) {
   if (!token || !nueva_password) {
     return res.status(400).json({ error: 'Token y nueva contraseña son obligatorios.' });
   }
+  if (typeof nueva_password !== 'string') {
+    return res.status(400).json({ error: 'Los datos enviados no tienen un formato válido.' });
+  }
   if (nueva_password.length < 6) {
     return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
   }
 
+  // D-16: un solo catch respondía "enlace inválido" (400) también ante una falla de la base.
+  // El token inválido o vencido es un error del cliente; la falla al guardar, del servidor (500).
+  let payload;
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    if (payload.tipo !== 'recuperacion') {
-      return res.status(400).json({ error: 'Token no válido para esta operación.' });
-    }
+    payload = jwt.verify(token, JWT_SECRET);
+  } catch {
+    return res.status(400).json({ error: 'El enlace de recuperación es inválido o expiró.' });
+  }
+  if (payload.tipo !== 'recuperacion') {
+    return res.status(400).json({ error: 'Token no válido para esta operación.' });
+  }
 
+  try {
     const password_hash = await bcrypt.hash(nueva_password, 10);
     await query('UPDATE usuario SET password_hash = $1 WHERE id_usuario = $2', [
       password_hash,
@@ -186,7 +196,8 @@ async function restablecerPassword(req, res) {
 
     res.json({ mensaje: 'Contraseña restablecida correctamente.' });
   } catch (err) {
-    return res.status(400).json({ error: 'El enlace de recuperación es inválido o expiró.' });
+    console.error('Error al restablecer la contraseña:', err.message);
+    res.status(500).json({ error: 'Error al restablecer la contraseña.' });
   }
 }
 

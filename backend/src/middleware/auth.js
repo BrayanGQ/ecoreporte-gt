@@ -17,7 +17,7 @@ function verificarToken(req, res, next) {
     // Guarda los datos del usuario autenticado en la petición.
     req.usuario = payload; // { id_usuario, correo, rol, id_municipalidad }
     next();
-  } catch (err) {
+  } catch {
     return res.status(401).json({ error: 'Token inválido o expirado.' });
   }
 }
@@ -29,7 +29,7 @@ function tokenOpcional(req, res, next) {
   if (authHeader && authHeader.startsWith('Bearer ')) {
     try {
       req.usuario = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
-    } catch (err) {
+    } catch {
       // Token inválido o expirado: se atiende como consulta pública.
     }
   }

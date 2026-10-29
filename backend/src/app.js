@@ -60,4 +60,20 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada.' });
 });
 
+// Errores que no llegan a los controladores (p. ej. un cuerpo JSON mal formado o demasiado
+// grande, que rechaza express.json): respuesta JSON sin stack ni detalles internos (D-15).
+// Express exige los cuatro parámetros para reconocerlo como manejador de errores.
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  if (err.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'El cuerpo de la petición no es un JSON válido.' });
+  }
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'La petición es demasiado grande.' });
+  }
+  const status = err.status >= 400 && err.status < 500 ? err.status : 500;
+  if (status === 500) console.error('Error no controlado:', err.message);
+  res.status(status).json({ error: status === 500 ? 'Error interno del servidor.' : 'La petición no es válida.' });
+});
+
 module.exports = app;
