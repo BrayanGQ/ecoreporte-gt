@@ -1,33 +1,32 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { Doughnut, Bar } from 'vue-chartjs';
 import { Chart as ChartJS, ArcElement, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
 import { estadisticaService, catalogoService } from '../services/api';
+import {
+  ESTADOS as PRESENTACION_ESTADOS, etiquetaEstado, fechaHora, formatoPorcentaje, formatoEntero, formatoDecimal,
+  formatoDiferencia, calcularReporte, periodoAnterior, descargarArchivo,
+} from '../utils/reporteria';
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip);
 
-// Presentación de cada estado: etiqueta legible, ícono, color de la gráfica y clase de la tarjeta.
-const ESTADOS = {
-  recibido:    { etiqueta: 'Recibidos',   icono: 'bx-archive-in',     color: '#E74C3C' },
-  asignado:    { etiqueta: 'Asignados',   icono: 'bx-user-check',     color: '#5B8DEF' },
-  en_atencion: { etiqueta: 'En atención', icono: 'bx-loader-circle',  color: '#E0A800' },
-  resuelto:    { etiqueta: 'Resueltos',   icono: 'bx-check-circle',   color: '#97BC62' },
-  descartado:  { etiqueta: 'Descartados', icono: 'bx-x-circle',       color: '#999999' },
+// Presentación de cada estado en pantalla: etiqueta y color (los mismos del Excel y el PDF) e ícono.
+const ICONOS = {
+  recibido: 'bx-archive-in',
+  asignado: 'bx-user-check',
+  en_atencion: 'bx-loader-circle',
+  resuelto: 'bx-check-circle',
+  descartado: 'bx-x-circle',
 };
-
-// Estado en singular, para la tabla del listado y el CSV.
-const ESTADO_SINGULAR = {
-  recibido: 'Recibido',
-  asignado: 'Asignado',
-  en_atencion: 'En atención',
-  resuelto: 'Resuelto',
-  descartado: 'Descartado',
-};
+const ESTADOS = Object.fromEntries(Object.entries(PRESENTACION_ESTADOS).map(([clave, e]) => [
+  clave, { etiqueta: e.plural, icono: ICONOS[clave], color: e.color },
+]));
 
 const resumen = ref(null);
 const porEstado = ref([]);
 const porTipo = ref([]);
 const listado = ref([]);
+const listadoAnterior = ref(null); // listado del período anterior (solo si hay período comparable)
 const error = ref('');
 const cargando = ref(true);      // primera carga: oculta el contenido
 const actualizando = ref(false); // recarga por filtro: atenúa el contenido sin ocultarlo
@@ -64,7 +63,7 @@ const descripcionFiltro = computed(() => {
   return partes.join(' ');
 });
 
-// ---------- Reportería: encabezado de impresión, tabla y CSV ----------
+// ---------- Reportería: Excel y PDF ----------
 // Municipalidad del reporte: la filtrada por el administrador, todas, o la del coordinador.
 const municipalidadReporte = computed(() => {
   const nombreDe = (id) => municipalidades.value.find((m) => m.id_municipalidad === Number(id))?.nombre;
@@ -72,86 +71,86 @@ const municipalidadReporte = computed(() => {
     const id = filtroAplicado.value?.id_municipalidad;
     return id ? nombreDe(id) || 'Municipalidad seleccionada' : 'Todas las municipalidades';
   }
-  return nombreDe(usuario?.id_municipalidad) || listado.value[0]?.municipalidad || 'Tu municipalidad';
+  return nombreDe(usuario?.id_municipalidad) || listado.value[0]?.municipalidad || 'Municipalidad';
 });
 
-const rangoReporte = computed(() => {
-  const f = filtroAplicado.value || {};
-  if (f.fecha_inicio && f.fecha_fin) return `Del ${fechaLegible(f.fecha_inicio)} al ${fechaLegible(f.fecha_fin)}`;
-  if (f.fecha_inicio) return `Desde el ${fechaLegible(f.fecha_inicio)}`;
-  if (f.fecha_fin) return `Hasta el ${fechaLegible(f.fecha_fin)}`;
-  return 'Todas las fechas';
-});
+const generando = ref(''); // 'excel' | 'pdf' mientras se arma el archivo
+const lienzoEstado = ref(null); // contenedores de las gráficas: el PDF toma la imagen de sus <canvas>
+const lienzoTipo = ref(null);
 
-const dos = (n) => String(n).padStart(2, '0');
-// Fecha y hora local en formato AAAA-MM-DD HH:MM (lo ordena bien Excel), o '' si no hay.
-function fechaHora(valor) {
-  if (!valor) return '';
-  const d = new Date(valor);
-  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())} ${dos(d.getHours())}:${dos(d.getMinutes())}`;
+// Los dos archivos salen del mismo cálculo, con los datos que muestra la pantalla.
+function datosReporte() {
+  return calcularReporte({
+    resumen: resumen.value,
+    porTipo: porTipo.value,
+    listado: listado.value,
+    listadoAnterior: listadoAnterior.value,
+    municipalidad: municipalidadReporte.value,
+    todas: esAdmin && !filtroAplicado.value?.id_municipalidad,
+    filtro: filtroAplicado.value,
+    usuario,
+  });
 }
 
-const COLUMNAS_CSV = [
-  ['Código de seguimiento', (r) => r.codigo_seguimiento],
-  ['Fecha de reporte', (r) => fechaHora(r.fecha_reporte)],
-  ['Tipo de incidencia', (r) => r.nombre_tipo],
-  ['Estado', (r) => ESTADO_SINGULAR[r.nombre_estado] || r.nombre_estado],
-  ['Municipalidad', (r) => r.municipalidad],
-  ['Latitud', (r) => r.latitud],
-  ['Longitud', (r) => r.longitud],
-  ['Encargado de cuadrilla', (r) => r.encargado_asignado || ''],
-  ['Fecha de resolución', (r) => fechaHora(r.fecha_resolucion)],
-];
-
-// Celda CSV: entre comillas si hace falta. Un texto que empieza con = + - @ se antepone con '
-// para que Excel no lo interprete como fórmula (las coordenadas son números y no se tocan).
-function celdaCsv(valor) {
-  let texto = valor == null ? '' : String(valor);
-  if (typeof valor === 'string' && /^[=+\-@]/.test(texto)) texto = `'${texto}`;
-  return /[",\r\n]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto;
+// ExcelJS y jsPDF se cargan recién al descargar: no van en el paquete principal.
+async function descargar(formato) {
+  generando.value = formato;
+  error.value = '';
+  try {
+    const rep = datosReporte();
+    if (formato === 'excel') {
+      const { generarExcel } = await import('../utils/reporte-excel.js');
+      descargarArchivo(await generarExcel(rep), `${rep.nombreArchivo}.xlsx`);
+    } else {
+      const { generarPdf } = await import('../utils/reporte-pdf.js');
+      const blob = await generarPdf(rep, {
+        estado: lienzoEstado.value?.querySelector('canvas'),
+        tipo: lienzoTipo.value?.querySelector('canvas'),
+      });
+      descargarArchivo(blob, `${rep.nombreArchivo}.pdf`);
+    }
+  } catch (err) {
+    console.error('Error al generar el reporte:', err);
+    error.value = `No se pudo generar el ${formato === 'excel' ? 'Excel' : 'PDF'}. Intentá de nuevo.`;
+  } finally {
+    generando.value = '';
+  }
 }
 
-// Descarga el listado vigente (el del filtro aplicado) como CSV con BOM UTF-8, para que Excel
-// muestre bien las tildes.
-function descargarCsv() {
-  const filas = [
-    COLUMNAS_CSV.map(([titulo]) => celdaCsv(titulo)).join(','),
-    ...listado.value.map((r) => COLUMNAS_CSV.map(([, valor]) => celdaCsv(valor(r))).join(',')),
-  ];
-  const blob = new Blob(['﻿' + filas.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });
-  const hoy = new Date();
-  const enlace = document.createElement('a');
-  enlace.href = URL.createObjectURL(blob);
-  enlace.download = `reporte_ecoreporte_${hoy.getFullYear()}-${dos(hoy.getMonth() + 1)}-${dos(hoy.getDate())}.csv`;
-  document.body.appendChild(enlace);
-  enlace.click();
-  enlace.remove();
-  URL.revokeObjectURL(enlace.href);
+// Mismo cálculo que los archivos: indicadores y comparación con el período anterior.
+const reportePantalla = computed(() => (resumen.value ? datosReporte() : null));
+
+// "Período anterior: 6 (+3)" para la tarjeta del indicador, o la nota si no hay comparación.
+function notaComparacion(indicador) {
+  const comp = reportePantalla.value?.comparacion;
+  if (!comp) return '';
+  if (!comp.disponible) return indicador === 'Total de reportes' ? comp.nota : '';
+  const fila = comp.filas.find((f) => f.indicador === indicador);
+  return fila ? `Período anterior: ${formatoEntero(fila.anterior)} (${formatoDiferencia(fila.diferencia)})` : '';
 }
 
-function imprimir() {
-  window.print();
-}
-
-// Clase en <body> mientras esta vista está abierta: la usa @media print (estilo sin scoped, abajo)
-// para ocultar el menú lateral del panel solo al imprimir esta vista.
-onMounted(() => document.body.classList.add('impresion-estadisticas'));
-onUnmounted(() => document.body.classList.remove('impresion-estadisticas'));
-
-// Tarjetas: total + una por cada estado, en el orden que define el catálogo.
+// Tarjetas: total, una por cada estado (en el orden del catálogo) y los días hasta la asignación.
 const tarjetas = computed(() => {
   if (!resumen.value) return [];
   const estados = porEstado.value.length
     ? porEstado.value.map((e) => e.nombre_estado)
     : Object.keys(resumen.value.por_estado);
+  const diasAsignacion = reportePantalla.value?.indicadores.promedioDiasAsignacion;
   return [
-    { clave: 'total', etiqueta: 'Total de reportes', icono: 'bx-grid-alt', valor: resumen.value.total },
+    { clave: 'total', etiqueta: 'Total de reportes', icono: 'bx-grid-alt', valor: resumen.value.total, nota: notaComparacion('Total de reportes') },
     ...estados.map((nombre) => ({
       clave: nombre,
       etiqueta: ESTADOS[nombre]?.etiqueta || nombre,
       icono: ESTADOS[nombre]?.icono || 'bx-circle',
       valor: resumen.value.por_estado[nombre] ?? 0,
+      nota: nombre === 'resuelto' ? notaComparacion('Resueltos') : '',
     })),
+    {
+      clave: 'asignacion',
+      etiqueta: 'Días promedio hasta la asignación',
+      icono: 'bx-time-five',
+      valor: diasAsignacion == null ? '-' : formatoDecimal(diasAsignacion),
+    },
   ];
 });
 
@@ -159,8 +158,7 @@ const tarjetas = computed(() => {
 const totalGrafica = computed(() => porEstado.value.reduce((s, e) => s + e.cantidad, 0));
 
 function porcentaje(cantidad) {
-  if (!totalGrafica.value) return '0%';
-  return `${Math.round((cantidad / totalGrafica.value) * 100)}%`;
+  return formatoPorcentaje(totalGrafica.value ? cantidad / totalGrafica.value : 0);
 }
 
 const datosGrafica = computed(() => ({
@@ -267,16 +265,20 @@ async function cargar(filtros = {}) {
   else cargando.value = true;
   error.value = '';
   try {
-    const [r, e, t, l] = await Promise.all([
+    // Período anterior de la misma duración (mismo alcance y filtros), para la comparación.
+    const anterior = periodoAnterior(filtros);
+    const [r, e, t, l, a] = await Promise.all([
       estadisticaService.resumen(filtros),
       estadisticaService.porEstado(filtros),
       estadisticaService.porTipo(filtros),
       estadisticaService.reportes(filtros),
+      anterior ? estadisticaService.reportes({ ...filtros, ...anterior }) : Promise.resolve(null),
     ]);
     resumen.value = r.data;
     porEstado.value = e.data;
     porTipo.value = t.data;
     listado.value = l.data;
+    listadoAnterior.value = a ? a.data : null;
     filtroAplicado.value = Object.keys(filtros).length ? filtros : null;
   } catch (err) {
     if (err.response?.status === 403) error.value = 'No tenés permiso para ver las estadísticas.';
@@ -321,18 +323,11 @@ onMounted(async () => {
 
 <template>
   <div class="container">
-    <h1 class="title no-imprimir">Estadísticas</h1>
-    <p class="sub no-imprimir">{{ esAdmin ? 'Estadísticas globales de la plataforma. Podés filtrar por municipalidad.' : 'Estadísticas de los reportes de tu municipalidad.' }}</p>
-
-    <!-- Encabezado que solo aparece al imprimir o guardar como PDF -->
-    <header class="solo-impresion encabezado-impresion">
-      <h1>Reporte de incidencias ambientales</h1>
-      <p><strong>Municipalidad:</strong> {{ municipalidadReporte }}</p>
-      <p><strong>Rango de fechas:</strong> {{ rangoReporte }}</p>
-    </header>
+    <h1 class="title">Estadísticas</h1>
+    <p class="sub">{{ esAdmin ? 'Estadísticas globales de la plataforma. Podés filtrar por municipalidad.' : 'Estadísticas de los reportes de tu municipalidad.' }}</p>
 
     <!-- Filtros: municipalidad (solo administrador) y rango de fechas -->
-    <form class="card filter-card no-imprimir" @submit.prevent="aplicarFiltro">
+    <form class="card filter-card" @submit.prevent="aplicarFiltro">
       <div class="filter-head">
         <i class="bx bx-calendar"></i>
         <span>{{ esAdmin ? 'Filtrar por municipalidad y fecha de reporte' : 'Filtrar por fecha de reporte' }}</span>
@@ -372,16 +367,18 @@ onMounted(async () => {
       </p>
     </form>
 
-    <div v-if="error" class="alert error no-imprimir"><i class="bx bx-error-circle"></i> {{ error }}</div>
-    <div v-if="cargando" class="alert ok no-imprimir"><i class="bx bx-loader-alt bx-spin"></i> Cargando estadísticas...</div>
+    <div v-if="error" class="alert error"><i class="bx bx-error-circle"></i> {{ error }}</div>
+    <div v-if="cargando" class="alert ok"><i class="bx bx-loader-alt bx-spin"></i> Cargando estadísticas...</div>
 
     <!-- Reportería: con el filtro aplicado -->
-    <div v-if="!cargando && resumen" class="report-actions no-imprimir">
-      <button type="button" class="btn" :disabled="actualizando" @click="descargarCsv">
-        <i class="bx bx-download"></i> Descargar reporte (Excel)
+    <div v-if="!cargando && resumen" class="report-actions">
+      <button type="button" class="btn" :disabled="actualizando || !!generando" @click="descargar('excel')">
+        <i class="bx" :class="generando === 'excel' ? 'bx-loader-alt bx-spin' : 'bx-download'"></i>
+        {{ generando === 'excel' ? 'Generando Excel...' : 'Descargar Excel' }}
       </button>
-      <button type="button" class="btn ghost" :disabled="actualizando" @click="imprimir">
-        <i class="bx bx-printer"></i> Imprimir / guardar PDF
+      <button type="button" class="btn ghost" :disabled="actualizando || !!generando" @click="descargar('pdf')">
+        <i class="bx" :class="generando === 'pdf' ? 'bx-loader-alt bx-spin' : 'bx-file'"></i>
+        {{ generando === 'pdf' ? 'Generando PDF...' : 'Descargar PDF' }}
       </button>
     </div>
 
@@ -392,6 +389,7 @@ onMounted(async () => {
           <div>
             <div class="stat-number">{{ t.valor }}</div>
             <div class="stat-label">{{ t.etiqueta }}</div>
+            <div v-if="t.nota" class="stat-nota">{{ t.nota }}</div>
           </div>
         </div>
       </div>
@@ -404,7 +402,7 @@ onMounted(async () => {
         </p>
 
         <div v-else class="chart-body">
-          <div class="chart-wrap">
+          <div ref="lienzoEstado" class="chart-wrap">
             <Doughnut :data="datosGrafica" :options="opcionesGrafica" />
             <div class="chart-center">
               <span class="center-number">{{ totalGrafica }}</span>
@@ -430,12 +428,12 @@ onMounted(async () => {
           {{ filtroAplicado ? 'No hay reportes en el rango de fechas seleccionado.' : 'Todavía no hay reportes para graficar.' }}
         </p>
 
-        <div v-else class="bar-wrap" :style="{ height: alturaBarras }">
+        <div v-else ref="lienzoTipo" class="bar-wrap" :style="{ height: alturaBarras }">
           <Bar :data="datosBarras" :options="opcionesBarras" />
         </div>
       </div>
 
-      <div class="card chart-card listado-card">
+      <div class="card chart-card">
         <h2 class="card-title"><i class="bx bx-table"></i> Listado de reportes ({{ listado.length }})</h2>
 
         <p v-if="!listado.length" class="empty">
@@ -461,7 +459,7 @@ onMounted(async () => {
                 <td class="codigo">{{ r.codigo_seguimiento }}</td>
                 <td class="nowrap">{{ fechaHora(r.fecha_reporte) }}</td>
                 <td>{{ r.nombre_tipo }}</td>
-                <td><span class="badge" :class="'b-' + r.nombre_estado">{{ ESTADO_SINGULAR[r.nombre_estado] || r.nombre_estado }}</span></td>
+                <td><span class="badge" :class="'b-' + r.nombre_estado">{{ etiquetaEstado(r.nombre_estado) }}</span></td>
                 <td>{{ r.municipalidad }}</td>
                 <td class="nowrap coords">{{ r.latitud.toFixed(5) }}, {{ r.longitud.toFixed(5) }}</td>
                 <td>{{ r.encargado_asignado || '—' }}</td>
@@ -514,7 +512,7 @@ onMounted(async () => {
 /* ---------- Tarjetas ---------- */
 .stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -547,6 +545,8 @@ onMounted(async () => {
 .i-descartado { background: #F2F4F7; color: #667085; }
 .stat-number { font-size: 28px; font-weight: 700; color: var(--slate); line-height: 1.15; }
 .stat-label { font-size: 13px; color: var(--text-secondary); }
+.stat-nota { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+.i-asignacion { background: #E9F3E1; color: var(--forest); }
 
 /* ---------- Gráficas ---------- */
 .chart-card { padding: 24px; margin-bottom: 24px; }
@@ -622,27 +622,10 @@ onMounted(async () => {
 .listado .codigo { font-weight: 600; color: var(--forest-dark); white-space: nowrap; }
 .listado .nowrap { white-space: nowrap; }
 .listado .coords { color: var(--text-secondary); font-size: 12.5px; }
-.solo-impresion { display: none; }
 
-@media print {
-  .no-imprimir { display: none !important; }
-  .solo-impresion { display: block; }
-  .container { max-width: none; padding: 0; }
-  .encabezado-impresion { margin-bottom: 16px; }
-  .encabezado-impresion h1 { font-size: 20px; color: #000; margin-bottom: 6px; }
-  .encabezado-impresion p { font-size: 12.5px; margin: 2px 0; }
-  .results.dimmed { opacity: 1; }
-  .stats { grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
-  .stat-card, .chart-card { box-shadow: none; break-inside: avoid; }
-  .listado-card { break-inside: auto; }
-  .chart-body { gap: 24px; }
-  .table-wrap { overflow: visible; }
-  .listado, .listado .coords { font-size: 10.5px; }
-  .listado thead { display: table-header-group; } /* repite el encabezado en cada página */
-  .listado tr { break-inside: avoid; }
-  .listado tbody tr:hover { background: none; }
+@media (max-width: 1100px) {
+  .stats { grid-template-columns: repeat(3, 1fr); }
 }
-
 @media (max-width: 768px) {
   .stats { grid-template-columns: 1fr 1fr; }
   .chart-body { flex-direction: column; gap: 24px; }
@@ -656,12 +639,3 @@ onMounted(async () => {
 }
 </style>
 
-<style>
-/* Sin scoped: al imprimir esta vista se oculta el menú lateral del panel (PortalMunicipalLayout).
-   Solo aplica mientras <body> tiene la clase que la vista agrega al montarse. */
-@media print {
-  body.impresion-estadisticas { background: #fff; }
-  body.impresion-estadisticas .sidebar { display: none !important; }
-  body.impresion-estadisticas .layout { display: block; min-height: 0; background: #fff; }
-}
-</style>

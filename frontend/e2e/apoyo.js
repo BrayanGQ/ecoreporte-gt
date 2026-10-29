@@ -1,6 +1,7 @@
 // Utilidades de las pruebas E2E: usuarios ficticios de la demostración, inicio de sesión por la
 // interfaz, preparación de datos por la API del backend de pruebas y una foto de ejemplo.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect } from '@playwright/test';
@@ -25,10 +26,24 @@ export const USUARIOS = {
   coordGuatemala: 'ana.morales@ecoreporte.gt',
   coordMixco: 'mario.castillo@ecoreporte.gt',
   cuadrilla: 'carlos.perez@ecoreporte.gt', // Carlos Enrique Pérez, Municipalidad de Guatemala
+  admin: 'admin@ecoreporte.gt',
 };
+
+// Nombres de los ciudadanos de la demostración (backend/src/demo.js): no deben aparecer en los
+// archivos exportados.
+export const CIUDADANOS_DEMO = [
+  'María José García', 'Juan Pablo Rodríguez', 'Sofía Alejandra Méndez', 'Diego Andrés Orellana',
+  'Lucía Fernanda Cifuentes',
+];
+
+// Carpeta de resultados de QA (fuera del repositorio), la misma que usa playwright.config.js.
+export const RESULTADOS_QA = process.env.QA_RESULTADOS
+  || path.join(os.homedir(), 'Documents', 'QA-EcoReporte-resultados');
 
 // Punto dentro del límite de la Municipalidad de Guatemala (zona 1).
 export const GUATEMALA = { latitude: 14.6349, longitude: -90.5069 };
+// Punto dentro del límite de la Municipalidad de Mixco (cabecera; el mismo de la demostración).
+export const MIXCO = { latitude: 14.6311, longitude: -90.6072 };
 
 // PNG de 1x1 válido, como archivo para los <input type="file">.
 export const FOTO = {
@@ -55,10 +70,13 @@ export async function token(request, correo) {
   return (await res.json()).token;
 }
 
-export async function crearReporteApi(request, descripcion) {
+// Por defecto, reporte anónimo en Guatemala; con { punto, tokenCiudadano } se ubica en otro
+// municipio y queda a nombre de esa cuenta.
+export async function crearReporteApi(request, descripcion, { punto = GUATEMALA, tokenCiudadano } = {}) {
   const res = await request.post(`${API}/reportes`, {
+    headers: tokenCiudadano ? { Authorization: `Bearer ${tokenCiudadano}` } : {},
     data: {
-      id_tipo_incidencia: 1, latitud: GUATEMALA.latitude, longitud: GUATEMALA.longitude,
+      id_tipo_incidencia: 1, latitud: punto.latitude, longitud: punto.longitude,
       descripcion: `${MARCA} ${descripcion}`,
     },
   });

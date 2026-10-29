@@ -6,7 +6,7 @@
 //        node ../backend/scripts/servidor-pruebas.js        (http://localhost:3100, ecoreporte_test)
 // Uso (desde frontend/):
 //   node scripts/lighthouse.mjs --salida=<carpeta>           o   LH_SALIDA=<carpeta> node scripts/lighthouse.mjs
-//   Opcional: LH_BASE (por defecto http://localhost:3100) y CHROME_PATH.
+//   Opcional: LH_BASE (por defecto http://localhost:3100), CHROME_PATH y --vistas=<id>,<id> (solo esas vistas).
 //
 // - Lanza un Chrome propio (headless) con depuración remota y corre `npx lighthouse --port` contra él,
 //   con el preset de escritorio y con el de celular (configuración por defecto de Lighthouse).
@@ -27,6 +27,9 @@ if (!SALIDA_ELEGIDA) {
   process.exit(1);
 }
 const SALIDA = path.resolve(SALIDA_ELEGIDA);
+// Opcional: auditar solo algunas vistas, por id (ej. --vistas=estadisticas-coordinador,estadisticas-admin).
+const ARG_VISTAS = process.argv.slice(2).find((a) => a.startsWith('--vistas='));
+const VISTAS_ELEGIDAS = ARG_VISTAS ? ARG_VISTAS.slice('--vistas='.length).split(',').filter(Boolean) : null;
 const BASE = process.env.LH_BASE || 'http://localhost:3100';
 const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const PUERTO_DEPURACION = 9444;
@@ -206,11 +209,13 @@ async function main() {
     // Primero las vistas públicas (Lighthouse borra el almacenamiento antes de cada una); después,
     // las de cada rol con su sesión inyectada y sin borrar el almacenamiento.
     for (const grupo of GRUPOS) {
+      const vistas = grupo.vistas.filter((v) => !VISTAS_ELEGIDAS || VISTAS_ELEGIDAS.includes(v.id));
+      if (!vistas.length) continue;
       if (grupo.sesion) {
         await inyectarSesion(sesiones[grupo.sesion]);
         console.log(`\nSesión inyectada: ${sesiones[grupo.sesion].usuario.nombre_completo} (${sesiones[grupo.sesion].usuario.rol}).`);
       }
-      for (const vista of grupo.vistas) {
+      for (const vista of vistas) {
         const ruta = typeof vista.ruta === 'function' ? vista.ruta(ctx) : vista.ruta;
         for (const disp of DISPOSITIVOS) {
           const archivo = path.join(SALIDA, `${grupo.id}-${vista.id}-${disp.id}`);

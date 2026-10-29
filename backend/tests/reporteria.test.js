@@ -7,7 +7,7 @@ const {
 const RUTA = '/api/estadisticas/reportes';
 const CAMPOS = [
   'codigo_seguimiento', 'fecha_reporte', 'nombre_tipo', 'nombre_estado', 'municipalidad',
-  'latitud', 'longitud', 'encargado_asignado', 'fecha_resolucion',
+  'latitud', 'longitud', 'encargado_asignado', 'fecha_asignacion', 'fecha_resolucion',
 ].sort();
 
 let P;
@@ -120,5 +120,42 @@ describe('Reportería: listado de reportes de Estadísticas', () => {
     const sinAtender = res.body.find((r) => r.codigo_seguimiento === recibido.codigo_seguimiento);
     expect(sinAtender.encargado_asignado).toBeNull();
     expect(sinAtender.fecha_resolucion).toBeNull();
+  });
+
+  test('CP-116 fecha_asignacion: primera asignación del historial en un reporte asignado y null en uno recibido, sin datos personales', async () => {
+    // Reporte de una ciudadana con sesión: asignado a una cuadrilla y reasignado a otra.
+    const creado = await api().post('/api/reportes').set(await bearer(USUARIOS.ciudadano)).send({
+      id_tipo_incidencia: 1, latitud: P.guatemala.lat, longitud: P.guatemala.lng,
+      descripcion: '[PRUEBA AUTOMATIZADA] reportería fecha de asignación',
+    });
+    const id = creado.body.id_reporte;
+    expect((await accion(id, 'asignar', USUARIOS.coordGuatemala, { id_usuario_asignado: await idUsuario(USUARIOS.cuadrillaA) })).status).toBe(200);
+    expect((await accion(id, 'asignar', USUARIOS.coordGuatemala, { id_usuario_asignado: await idUsuario(USUARIOS.cuadrillaB) })).status).toBe(200);
+    const recibido = (await crearReporte(P.guatemala, { descripcion: 'reportería sin asignar' })).body;
+
+    const res = await listado(USUARIOS.coordGuatemala);
+    expect(res.status).toBe(200);
+    for (const fila of res.body) expect(Object.keys(fila).sort()).toEqual(CAMPOS);
+
+    // La primera vez que pasó a 'asignado', según historial_estado.
+    const primera = (await query(
+      `SELECT MIN(h.fecha_cambio) AS fecha FROM historial_estado h
+       JOIN estado_reporte e ON e.id_estado = h.id_estado
+       WHERE h.id_reporte = $1 AND e.nombre_estado = 'asignado'`, [id]
+    )).rows[0].fecha;
+    expect(primera).not.toBeNull();
+    const asignado = res.body.find((r) => r.codigo_seguimiento === creado.body.codigo_seguimiento);
+    expect(asignado.nombre_estado).toBe('asignado');
+    expect(new Date(asignado.fecha_asignacion).getTime()).toBe(new Date(primera).getTime());
+
+    const sinAsignar = res.body.find((r) => r.codigo_seguimiento === recibido.codigo_seguimiento);
+    expect(sinAsignar.nombre_estado).toBe('recibido');
+    expect(sinAsignar.fecha_asignacion).toBeNull();
+
+    const ciudadana = (await query('SELECT nombre_completo, correo FROM usuario WHERE correo = $1', [USUARIOS.ciudadano])).rows[0];
+    const texto = JSON.stringify(res.body);
+    expect(texto).not.toContain(ciudadana.correo);
+    expect(texto).not.toContain(ciudadana.nombre_completo);
+    expect(texto).not.toContain('reportería fecha de asignación');
   });
 });

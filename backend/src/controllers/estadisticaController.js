@@ -136,6 +136,7 @@ async function resumen(req, res) {
 // GET /api/estadisticas/reportes — listado de reportes para la reportería (tabla, Excel y PDF).
 // Mismo alcance y filtros que las demás estadísticas. No incluye datos personales del ciudadano
 // (ni quién reportó ni la descripción): solo el encargado de cuadrilla asignado.
+// fecha_asignacion: el primer paso a 'asignado' registrado en historial_estado (o null).
 // fecha_resolucion: el último paso a 'resuelto' registrado en historial_estado (o null).
 async function listadoReportes(req, res) {
   const filtro = filtroEstadisticas(req);
@@ -147,6 +148,10 @@ async function listadoReportes(req, res) {
               m.nombre AS municipalidad,
               r.latitud::float8 AS latitud, r.longitud::float8 AS longitud,
               ua.nombre_completo AS encargado_asignado,
+              (SELECT MIN(h.fecha_cambio)
+               FROM historial_estado h
+               JOIN estado_reporte eh ON eh.id_estado = h.id_estado
+               WHERE h.id_reporte = r.id_reporte AND eh.nombre_estado = 'asignado') AS fecha_asignacion,
               (SELECT MAX(h.fecha_cambio)
                FROM historial_estado h
                JOIN estado_reporte eh ON eh.id_estado = h.id_estado
