@@ -41,6 +41,11 @@ async function crearReporte(req, res) {
   if (!id_tipo_incidencia || latitud == null || longitud == null) {
     return res.status(400).json({ error: 'Tipo de incidencia y ubicación son obligatorios.' });
   }
+  // D-05: un tipo de incidencia no numérico o inexistente provocaba un error 500.
+  const idTipo = Number(id_tipo_incidencia);
+  if (!Number.isInteger(idTipo) || idTipo <= 0) {
+    return res.status(400).json({ error: 'El tipo de incidencia indicado no es válido.' });
+  }
   const coords = leerCoordenadas(latitud, longitud);
   if (!coords) {
     return res.status(400).json({ error: 'La ubicación indicada no es válida.' });
@@ -57,6 +62,14 @@ async function crearReporte(req, res) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    const tipoRes = await client.query(
+      'SELECT 1 FROM tipo_incidencia WHERE id_tipo_incidencia = $1', [idTipo]
+    );
+    if (tipoRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'El tipo de incidencia indicado no existe.' });
+    }
 
     // Municipalidad responsable: la activa cuyo límite contiene el punto.
     const muni = await municipalidadEnPunto(coords.lat, coords.lng, (t, p) => client.query(t, p));

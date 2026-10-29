@@ -1,6 +1,6 @@
 {
   "name": "ecoreporte-backend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "API REST de EcoReporte GT — plataforma de vertederos clandestinos",
   "main": "src/index.js",
   "type": "commonjs",

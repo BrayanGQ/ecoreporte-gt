@@ -6,12 +6,25 @@ const { JWT_SECRET } = require('../middleware/auth');
 require('dotenv').config();
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
+const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // POST /api/auth/registro — registro de un nuevo ciudadano.
 async function registro(req, res) {
   const { nombre_completo, correo, password } = req.body;
   if (!nombre_completo || !correo || !password) {
     return res.status(400).json({ error: 'Todos los campos son obligatorios.' });
+  }
+  // D-04: valores que no son texto (p. ej. una contraseña numérica) o que exceden el largo de
+  // la columna provocaban un error 500; se rechazan como datos inválidos.
+  if (typeof nombre_completo !== 'string' || typeof correo !== 'string' || typeof password !== 'string') {
+    return res.status(400).json({ error: 'Los datos enviados no tienen un formato válido.' });
+  }
+  if (nombre_completo.trim().length > 120) {
+    return res.status(400).json({ error: 'El nombre admite como máximo 120 caracteres.' });
+  }
+  // D-03: el correo se guardaba sin validar su formato.
+  if (correo.length > 150 || !CORREO_VALIDO.test(correo)) {
+    return res.status(400).json({ error: 'El correo no tiene un formato válido.' });
   }
   if (password.length < 6) {
     return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
@@ -185,6 +198,10 @@ async function cambiarPassword(req, res) {
   const { password_actual, password_nueva } = req.body;
   if (!password_actual || !password_nueva) {
     return res.status(400).json({ error: 'La contraseña actual y la nueva son obligatorias.' });
+  }
+  // D-10: una contraseña que no es texto provocaba un error 500 en bcrypt.
+  if (typeof password_actual !== 'string' || typeof password_nueva !== 'string') {
+    return res.status(400).json({ error: 'Los datos enviados no tienen un formato válido.' });
   }
   if (password_nueva.length < 6) {
     return res.status(400).json({ error: 'La contraseña nueva debe tener al menos 6 caracteres.' });

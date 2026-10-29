@@ -7,6 +7,18 @@ const { query } = require('../config/db');
 // Roles que el administrador puede asignar a una cuenta de personal.
 const ROLES_PERSONAL = ['personal_municipal', 'encargado_cuadrilla', 'administrador'];
 
+// Validación de entrada (D-06 a D-12): datos que no son texto, textos más largos que su columna
+// (database/01_esquema.sql) o ids no numéricos provocaban errores 500 o la caída del servidor.
+const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const DATOS_INVALIDOS = 'Los datos enviados no tienen un formato válido.';
+const ID_INVALIDO = 'El identificador indicado no es válido.';
+const esTextoOpcional = (valor) => valor == null || typeof valor === 'string';
+
+// Id entero positivo (de la ruta o del cuerpo), o null si no lo es.
+function idValido(valor) {
+  return /^\d+$/.test(String(valor)) && Number(valor) > 0 ? Number(valor) : null;
+}
+
 // =========================================================================
 // GESTIÓN DE USUARIOS
 // =========================================================================
@@ -54,13 +66,30 @@ async function crearUsuario(req, res) {
   if (!nombre_completo || !correo || !password || !id_municipalidad || !id_rol) {
     return res.status(400).json({ error: 'Todos los campos son obligatorios.' });
   }
+  // D-07: valores que no son texto o más largos que la columna provocaban un error 500.
+  if (typeof nombre_completo !== 'string' || typeof correo !== 'string' || typeof password !== 'string') {
+    return res.status(400).json({ error: DATOS_INVALIDOS });
+  }
+  if (nombre_completo.length > 120) {
+    return res.status(400).json({ error: 'El nombre admite como máximo 120 caracteres.' });
+  }
+  // D-06: el correo se guardaba sin validar su formato.
+  if (correo.length > 150 || !CORREO_VALIDO.test(correo)) {
+    return res.status(400).json({ error: 'El correo no tiene un formato válido.' });
+  }
   if (password.length < 6) {
     return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
+  }
+  // D-07: un id de rol o de municipalidad no numérico provocaba un error 500.
+  const idRol = idValido(id_rol);
+  const idMunicipalidad = idValido(id_municipalidad);
+  if (!idRol || !idMunicipalidad) {
+    return res.status(400).json({ error: 'El rol o la municipalidad indicados no son válidos.' });
   }
 
   try {
     // El rol debe ser uno de los asignables al personal (nunca 'ciudadano').
-    const rol = await query('SELECT nombre_rol FROM rol WHERE id_rol = $1', [id_rol]);
+    const rol = await query('SELECT nombre_rol FROM rol WHERE id_rol = $1', [idRol]);
     if (rol.rows.length === 0 || !ROLES_PERSONAL.includes(rol.rows[0].nombre_rol)) {
       return res.status(400).json({ error: 'El rol seleccionado no es válido para personal municipal.' });
     }
@@ -68,7 +97,7 @@ async function crearUsuario(req, res) {
     // La municipalidad debe existir.
     const muni = await query(
       'SELECT id_municipalidad FROM municipalidad WHERE id_municipalidad = $1',
-      [id_municipalidad]
+      [idMunicipalidad]
     );
     if (muni.rows.length === 0) {
       return res.status(400).json({ error: 'La municipalidad seleccionada no existe.' });
@@ -87,7 +116,7 @@ async function crearUsuario(req, res) {
       `INSERT INTO usuario (nombre_completo, correo, password_hash, id_rol, id_municipalidad)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING id_usuario, nombre_completo, correo, estado, id_rol, id_municipalidad`,
-      [nombre_completo, correo, password_hash, id_rol, id_municipalidad]
+      [nombre_completo, correo, password_hash, idRol, idMunicipalidad]
     );
 
     res.status(201).json({
@@ -151,6 +180,11 @@ async function cambiarEstadoUsuario(req, res) {
 // Es la vía de recuperación en producción, donde POST /api/auth/recuperar no devuelve el token.
 async function restablecerPasswordUsuario(req, res) {
   const { correo, password } = req.body;
+  // D-08: un correo que no es texto lanzaba una excepción fuera del try (caída del servidor).
+  // D-09: una contraseña que no es texto provocaba un error 500 en bcrypt.
+  if (!esTextoOpcional(correo) || !esTextoOpcional(password)) {
+    return res.status(400).json({ error: DATOS_INVALIDOS });
+  }
   if (!correo || !correo.trim() || !password) {
     return res.status(400).json({ error: 'El correo y la nueva contraseña son obligatorios.' });
   }
@@ -201,11 +235,23 @@ async function listarTiposIncidencia(req, res) {
   }
 }
 
+// Valida el cuerpo de un tipo de incidencia; devuelve el mensaje de error o null.
+// D-08: un nombre que no es texto lanzaba una excepción fuera del try (caída del servidor).
+// D-11: textos más largos que la columna provocaban un error 500.
+function errorTipoIncidencia({ nombre_tipo, descripcion }) {
+  if (!esTextoOpcional(nombre_tipo) || !esTextoOpcional(descripcion)) return DATOS_INVALIDOS;
+  if (!nombre_tipo || !nombre_tipo.trim()) return 'El nombre del tipo de incidencia es obligatorio.';
+  if (nombre_tipo.trim().length > 80) return 'El nombre admite como máximo 80 caracteres.';
+  if (descripcion && descripcion.length > 200) return 'La descripción admite como máximo 200 caracteres.';
+  return null;
+}
+
 // POST /api/admin/tipos-incidencia — agrega un tipo de incidencia.
 async function crearTipoIncidencia(req, res) {
   const { nombre_tipo, descripcion } = req.body;
-  if (!nombre_tipo || !nombre_tipo.trim()) {
-    return res.status(400).json({ error: 'El nombre del tipo de incidencia es obligatorio.' });
+  const error = errorTipoIncidencia(req.body);
+  if (error) {
+    return res.status(400).json({ error });
   }
 
   try {
@@ -233,10 +279,14 @@ async function crearTipoIncidencia(req, res) {
 
 // PUT /api/admin/tipos-incidencia/:id — edita un tipo de incidencia.
 async function editarTipoIncidencia(req, res) {
-  const { id } = req.params;
+  const id = idValido(req.params.id);
   const { nombre_tipo, descripcion } = req.body;
-  if (!nombre_tipo || !nombre_tipo.trim()) {
-    return res.status(400).json({ error: 'El nombre del tipo de incidencia es obligatorio.' });
+  if (!id) {
+    return res.status(400).json({ error: ID_INVALIDO });
+  }
+  const error = errorTipoIncidencia(req.body);
+  if (error) {
+    return res.status(400).json({ error });
   }
 
   try {
@@ -287,11 +337,26 @@ async function listarMunicipalidades(req, res) {
   }
 }
 
+// Valida el cuerpo de una municipalidad; devuelve el mensaje de error o null.
+// D-08: un nombre que no es texto lanzaba una excepción fuera del try (caída del servidor).
+// D-12: textos más largos que la columna provocaban un error 500.
+function errorMunicipalidad({ nombre, departamento, direccion }) {
+  if (!esTextoOpcional(nombre) || !esTextoOpcional(departamento) || !esTextoOpcional(direccion)) {
+    return DATOS_INVALIDOS;
+  }
+  if (!nombre || !nombre.trim()) return 'El nombre de la municipalidad es obligatorio.';
+  if (nombre.trim().length > 100) return 'El nombre admite como máximo 100 caracteres.';
+  if (departamento && departamento.trim().length > 100) return 'El departamento admite como máximo 100 caracteres.';
+  if (direccion && direccion.length > 200) return 'La dirección admite como máximo 200 caracteres.';
+  return null;
+}
+
 // POST /api/admin/municipalidades — agrega una municipalidad.
 async function crearMunicipalidad(req, res) {
   const { nombre, departamento, direccion } = req.body;
-  if (!nombre || !nombre.trim()) {
-    return res.status(400).json({ error: 'El nombre de la municipalidad es obligatorio.' });
+  const error = errorMunicipalidad(req.body);
+  if (error) {
+    return res.status(400).json({ error });
   }
 
   try {
@@ -320,10 +385,14 @@ async function crearMunicipalidad(req, res) {
 
 // PUT /api/admin/municipalidades/:id — edita una municipalidad.
 async function editarMunicipalidad(req, res) {
-  const { id } = req.params;
+  const id = idValido(req.params.id);
   const { nombre, departamento, direccion, estado_activo } = req.body;
-  if (!nombre || !nombre.trim()) {
-    return res.status(400).json({ error: 'El nombre de la municipalidad es obligatorio.' });
+  if (!id) {
+    return res.status(400).json({ error: ID_INVALIDO });
+  }
+  const error = errorMunicipalidad(req.body);
+  if (error) {
+    return res.status(400).json({ error });
   }
 
   try {
@@ -366,8 +435,11 @@ async function editarMunicipalidad(req, res) {
 // PUT /api/admin/municipalidades/:id/estado — activa o desactiva una municipalidad.
 // Activa = adoptó la plataforma: los reportes dentro de su límite se le asignan.
 async function cambiarEstadoMunicipalidad(req, res) {
-  const { id } = req.params;
+  const id = idValido(req.params.id);
   const { estado_activo } = req.body;
+  if (!id) {
+    return res.status(400).json({ error: ID_INVALIDO });
+  }
   if (typeof estado_activo !== 'boolean') {
     return res.status(400).json({ error: 'El estado debe ser verdadero o falso.' });
   }

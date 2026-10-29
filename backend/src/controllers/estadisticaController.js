@@ -133,4 +133,38 @@ async function resumen(req, res) {
   }
 }
 
-module.exports = { porEstado, porTipo, resumen };
+// GET /api/estadisticas/reportes — listado de reportes para la reportería (tabla, Excel y PDF).
+// Mismo alcance y filtros que las demás estadísticas. No incluye datos personales del ciudadano
+// (ni quién reportó ni la descripción): solo el encargado de cuadrilla asignado.
+// fecha_resolucion: el último paso a 'resuelto' registrado en historial_estado (o null).
+async function listadoReportes(req, res) {
+  const filtro = filtroEstadisticas(req);
+  if (filtro.error) return res.status(400).json({ error: filtro.error });
+
+  try {
+    const r = await query(
+      `SELECT r.codigo_seguimiento, r.fecha_reporte, t.nombre_tipo, e.nombre_estado,
+              m.nombre AS municipalidad,
+              r.latitud::float8 AS latitud, r.longitud::float8 AS longitud,
+              ua.nombre_completo AS encargado_asignado,
+              (SELECT MAX(h.fecha_cambio)
+               FROM historial_estado h
+               JOIN estado_reporte eh ON eh.id_estado = h.id_estado
+               WHERE h.id_reporte = r.id_reporte AND eh.nombre_estado = 'resuelto') AS fecha_resolucion
+       FROM reporte r
+       JOIN tipo_incidencia t ON t.id_tipo_incidencia = r.id_tipo_incidencia
+       JOIN estado_reporte e  ON e.id_estado = r.id_estado_actual
+       JOIN municipalidad m   ON m.id_municipalidad = r.id_municipalidad
+       LEFT JOIN usuario ua   ON ua.id_usuario = r.id_usuario_asignado
+       ${filtro.condicion ? `WHERE ${filtro.condicion}` : ''}
+       ORDER BY r.fecha_reporte DESC, r.id_reporte DESC`,
+      filtro.params
+    );
+    res.json(r.rows);
+  } catch (err) {
+    console.error('Error en el listado de reportes:', err.message);
+    res.status(500).json({ error: 'Error al obtener el listado de reportes.' });
+  }
+}
+
+module.exports = { porEstado, porTipo, resumen, listadoReportes };

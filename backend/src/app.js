@@ -17,7 +17,10 @@ const FRONTEND_DIST = path.join(__dirname, '../../frontend/dist');
 const INDEX_HTML = path.join(FRONTEND_DIST, 'index.html');
 const hayFrontend = fs.existsSync(INDEX_HTML);
 
-const SALUD = { mensaje: 'API de EcoReporte GT en funcionamiento.', version: '1.0.0' };
+// La versión sale de backend/package.json (npm version la actualiza ahí).
+const { version } = require('../package.json');
+
+const SALUD = { mensaje: 'API de EcoReporte GT en funcionamiento.', version };
 
 // Middlewares globales.
 app.use(cors());               // permite peticiones desde el frontend (Vue)

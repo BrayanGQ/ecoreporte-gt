@@ -69,6 +69,7 @@ router.put('/notificaciones/:id/leida', verificarToken, notificaciones.marcarLei
 router.get('/estadisticas/por-estado', personalMunicipal, estadisticas.porEstado);
 router.get('/estadisticas/por-tipo', personalMunicipal, estadisticas.porTipo);
 router.get('/estadisticas/resumen', personalMunicipal, estadisticas.resumen);
+router.get('/estadisticas/reportes', personalMunicipal, estadisticas.listadoReportes);
 
 // ---------- Administración (solo rol 'administrador') ----------
 // Gestión de cuentas de personal municipal.

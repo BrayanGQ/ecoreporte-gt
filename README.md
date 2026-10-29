@@ -1,6 +1,6 @@
 # EcoReporte GT
 
-**Versión 1.0.0**
+**Versión 1.0.1**
 
 Plataforma digital para la detección, registro y seguimiento de vertederos clandestinos en zonas urbanas de municipios del departamento de Guatemala.
 
@@ -253,6 +253,10 @@ Todos usan la contraseña **password123**, salvo que `DEMO_PASSWORD` defina otra
 - Asignar un reporte recibido a un encargado de cuadrilla, reasignarlo mientras siga asignado, o
   descartarlo con un motivo obligatorio.
 - Estadísticas de su municipalidad: tarjetas de resumen, gráfica por estado y por tipo, filtro por fechas.
+- Reportería en *Estadísticas*: listado de los reportes (código, fecha, tipo, estado, ubicación,
+  encargado y fecha de resolución, sin datos del ciudadano) con el filtro aplicado, descarga en CSV
+  para Excel (`reporte_ecoreporte_AAAA-MM-DD.csv`) e impresión o PDF del "Reporte de incidencias
+  ambientales".
 - Correo con el enlace al reporte cada vez que entra uno nuevo en su municipalidad.
 
 **Encargado de cuadrilla** — solo reportes asignados a él
@@ -268,7 +272,7 @@ Todos usan la contraseña **password123**, salvo que `DEMO_PASSWORD` defina otra
   ciudadanos) buscándola por correo.
 - Catálogos: tipos de incidencia y municipalidades; activar una municipalidad significa que
   adoptó la plataforma y empieza a recibir los reportes de su territorio.
-- Estadísticas globales, con filtro por municipalidad. Ve todos los reportes en solo lectura:
+- Estadísticas globales, con filtro por municipalidad, y la misma reportería (listado, CSV y PDF). Ve todos los reportes en solo lectura:
   no interviene en su atención.
 
 **Todo el personal** (coordinador, cuadrilla y administrador) tiene *Mi cuenta* en el menú
@@ -347,6 +351,7 @@ la API y no SMTP porque el plan gratis de Render bloquea las conexiones SMTP.
 | GET | `/api/estadisticas/resumen` | Coordinador, admin | Totales por estado |
 | GET | `/api/estadisticas/por-estado` | Coordinador, admin | Conteo por estado |
 | GET | `/api/estadisticas/por-tipo` | Coordinador, admin | Conteo por tipo de incidencia |
+| GET | `/api/estadisticas/reportes` | Coordinador, admin | Listado de reportes para la reportería (tabla, CSV y PDF), sin datos personales del ciudadano |
 | GET/POST | `/api/admin/usuarios` | Administrador | Listar y crear cuentas |
 | PUT | `/api/admin/usuarios/:id/estado` | Administrador | Activar o desactivar una cuenta |
 | POST | `/api/admin/usuarios/restablecer-password` | Administrador | Asignar una contraseña nueva a cualquier cuenta, por correo |
@@ -364,7 +369,7 @@ filtrar además por `id_municipalidad`.
 
 ## Pruebas
 
-El backend tiene 54 pruebas automatizadas (Jest + Supertest) que corren contra una
+El backend tiene 86 pruebas automatizadas (Jest + Supertest) que corren contra una
 base de datos aparte, `ecoreporte_test`, sin tocar los datos de la aplicación. Desde `backend/`:
 
 ```bash
@@ -451,7 +456,8 @@ solo la usan `npm run seed` y `npm run demo`, que se corren desde tu equipo (pas
 ### 3. Verificación
 
 - `https://<tu-servicio>.onrender.com/api/salud` responde
-  `{"mensaje":"API de EcoReporte GT en funcionamiento.","version":"1.0.0"}`.
+  `{"mensaje":"API de EcoReporte GT en funcionamiento.","version":"1.0.1"}` (la versión se lee de
+  `backend/package.json`).
 - `https://<tu-servicio>.onrender.com/` muestra la portada del portal ciudadano, y recargar
   `/portal/mapa` no da 404.
 - `https://<tu-servicio>.onrender.com/municipal` lleva al login municipal.
