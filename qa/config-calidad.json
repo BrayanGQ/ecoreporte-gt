@@ -1,6 +1,6 @@
 {
   "proyecto": "EcoReporte GT",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "modulos_criticos": [
     "src/controllers/authController.js",
     "src/middleware/auth.js",
@@ -21,7 +21,7 @@
   },
   "suite_autorizacion": "permisos.test.js",
   "umbrales": {
-    "M-01": 85,
+    "M-01": 97,
     "M-02": 95,
     "M-03": 0,
     "M-04": 90,

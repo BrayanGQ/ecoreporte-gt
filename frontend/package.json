@@ -1,6 +1,6 @@
 {
   "name": "ecoreporte-frontend",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Frontend Vue.js de EcoReporte GT",
   "type": "module",
   "scripts": {
